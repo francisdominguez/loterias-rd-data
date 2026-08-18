@@ -58,9 +58,25 @@ let allLotteries = [];
 let selectedLotteries = new Set();
 
 // ============================================
+// FECHA POR DEFECTO = HOY (nunca hardcodeada)
+// Solo se usa para rellenar los campos año/mes/día al cargar la página,
+// por lo que usar el reloj local del dispositivo es correcto aquí (no se
+// usa para comparar/ordenar fechas de sorteos, eso sigue siendo con
+// splitDate()/compareDateStrings() sobre strings 'YYYY-MM-DD').
+// ============================================
+function setDefaultDateInputs() {
+  const today = new Date();
+  const monthEl = document.getElementById("month");
+  const dayEl = document.getElementById("day");
+  if (monthEl && !monthEl.value) monthEl.value = today.getMonth() + 1;
+  if (dayEl && !dayEl.value) dayEl.value = today.getDate();
+}
+
+// ============================================
 // INICIALIZACIÓN
 // ============================================
 async function initializeData() {
+  setDefaultDateInputs();
   const statusEl = document.getElementById("data-init-status");
   statusEl.innerHTML = '<div class="loading"><div class="spinner"></div><span>Cargando datos...</span></div>';
 
@@ -141,16 +157,24 @@ function lotteryMatchesQuery(lotteryName, query) {
   });
 }
 
-// Devuelve la función-filtro de lotería activa: si hay texto en el buscador,
-// se usa la lógica AND/OR; si está vacío, se usa la selección manual (checklist).
+// El filtro que se usa en analyze() es SIEMPRE la selección manual del
+// dropdown (checklist + chips). El buscador de dentro del dropdown ya no
+// actúa como un modo de filtro alterno: solo acota qué loterías se ven en
+// la lista para poder encontrarlas más rápido, evitando el comportamiento
+// dual confuso que había antes (a veces analizaba por texto, a veces por
+// selección, según si el buscador tenía contenido).
 function getActiveLotteryFilter() {
-  const query = (document.getElementById("lottery-search")?.value || "").trim();
-  if (query) {
-    return (lotteryName) => lotteryMatchesQuery(lotteryName, query);
-  }
   return (lotteryName) => selectedLotteries.has(lotteryName);
 }
 
+// BUG corregido (causa real de "la app no hace nada"): el botón único
+// "Seleccionar todas" era en realidad un toggle. Si ya estaban todas
+// marcadas, al pulsarlo se DESmarcaban todas y esa selección vacía se
+// guardaba en localStorage. En la siguiente visita la app arrancaba sin
+// ninguna lotería seleccionada -y sin ningún aviso claro- así que todo
+// salía vacío. Ahora hay dos acciones explícitas e inequívocas
+// (Seleccionar todas / Vaciar selección) y, además, un estado vacío
+// visible que explica qué hacer en vez de fallar en silencio.
 function buildLotteryList() {
   const seen = new Set();
   allLotteries = [];
@@ -162,13 +186,21 @@ function buildLotteryList() {
   });
 
   const saved = localStorage.getItem(SELECTED_LOTTERIES_KEY);
-  if (saved) {
-    selectedLotteries = new Set(JSON.parse(saved));
+  const savedList = saved ? safeParseJSON(saved) : null;
+  if (Array.isArray(savedList) && savedList.length > 0) {
+    selectedLotteries = new Set(savedList.filter(l => allLotteries.includes(l)));
   } else {
+    // Por defecto, para que la app muestre algo útil de inmediato,
+    // se seleccionan todas las loterías disponibles.
     selectedLotteries = new Set(allLotteries);
   }
 
   renderLotterySelector();
+  renderSelectedChips();
+}
+
+function persistSelection() {
+  localStorage.setItem(SELECTED_LOTTERIES_KEY, JSON.stringify([...selectedLotteries]));
 }
 
 function renderLotterySelector() {
@@ -191,15 +223,42 @@ function renderLotterySelector() {
     .map(lottery => `
       <div class="lottery-option ${selectedLotteries.has(lottery) ? "selected" : ""}"
            data-lottery="${escapeHtml(lottery)}">
-        ${escapeHtml(lottery)}
+        ${selectedLotteries.has(lottery) ? "✓ " : ""}${escapeHtml(lottery)}
       </div>
     `)
     .join("");
 }
 
+// Chips con las loterías seleccionadas, mostradas arriba del dropdown.
+function renderSelectedChips() {
+  const container = document.getElementById("lottery-chips");
+  const label = document.getElementById("lottery-dropdown-label");
+  if (!container) return;
+
+  const selected = allLotteries.filter(l => selectedLotteries.has(l));
+
+  if (selected.length === 0) {
+    container.innerHTML = '<span class="muted small" id="lottery-chips-empty">Ninguna lotería seleccionada todavía.</span>';
+  } else {
+    container.innerHTML = selected
+      .map(l => `
+        <span class="lottery-chip" data-lottery="${escapeHtml(l)}">
+          ${escapeHtml(l)}
+          <button type="button" title="Quitar" data-remove-lottery="${escapeHtml(l)}">×</button>
+        </span>
+      `)
+      .join("");
+  }
+
+  if (label) {
+    label.textContent = selected.length === 0
+      ? "Seleccionar loterías…"
+      : `${selected.length} de ${allLotteries.length} loterías seleccionadas`;
+  }
+}
+
 function handleLotterySearch() {
   renderLotterySelector();
-  analyze();
 }
 
 function toggleLottery(lottery) {
@@ -208,21 +267,46 @@ function toggleLottery(lottery) {
   } else {
     selectedLotteries.add(lottery);
   }
-  localStorage.setItem(SELECTED_LOTTERIES_KEY, JSON.stringify([...selectedLotteries]));
+  persistSelection();
   renderLotterySelector();
+  renderSelectedChips();
   analyze();
 }
 
-function toggleAllLotteries() {
-  if (selectedLotteries.size === allLotteries.length) {
-    selectedLotteries.clear();
-  } else {
-    selectedLotteries = new Set(allLotteries);
-  }
-  localStorage.setItem(SELECTED_LOTTERIES_KEY, JSON.stringify([...selectedLotteries]));
+function selectAllLotteries() {
+  selectedLotteries = new Set(allLotteries);
+  persistSelection();
   renderLotterySelector();
+  renderSelectedChips();
   analyze();
 }
+
+function clearAllLotteries() {
+  selectedLotteries.clear();
+  persistSelection();
+  renderLotterySelector();
+  renderSelectedChips();
+  analyze();
+}
+
+// ---- Dropdown abrir/cerrar ----
+function toggleLotteryDropdown(forceOpen) {
+  const dropdown = document.getElementById("lottery-dropdown");
+  if (!dropdown) return;
+  const shouldOpen = typeof forceOpen === "boolean" ? forceOpen : !dropdown.classList.contains("open");
+  dropdown.classList.toggle("open", shouldOpen);
+  if (shouldOpen) {
+    document.getElementById("lottery-search")?.focus();
+  }
+}
+
+document.addEventListener("click", (e) => {
+  const dropdown = document.getElementById("lottery-dropdown");
+  if (!dropdown) return;
+  if (!dropdown.contains(e.target)) {
+    dropdown.classList.remove("open");
+  }
+});
 
 function updateDataSourceBadge() {
   const badge = document.getElementById("data-source-badge");
@@ -363,19 +447,75 @@ function compareDateStrings(a, b) {
 
 // ============================================
 // ANÁLISIS Y CÁLCULOS
+// Genera un bloque de resultados INDEPENDIENTE por cada lotería
+// seleccionada (nunca mezcla números de loterías distintas entre sí).
 // ============================================
 function analyze() {
-  const y = +document.getElementById("year").value;
   const m = +document.getElementById("month").value;
   const d = +document.getElementById("day").value;
   const top = +document.getElementById("top").value;
 
-  const lotteryFilter = getActiveLotteryFilter();
+  const summaryEl = document.getElementById("summary");
+  const resultsEl = document.getElementById("results-container");
+
+  // Se preserva el orden de allLotteries para que los bloques salgan
+  // siempre en un orden estable, no en el orden en que fueron clicadas.
+  const selected = allLotteries.filter(l => selectedLotteries.has(l));
+
+  if (selected.length === 0) {
+    summaryEl.innerHTML = "";
+    resultsEl.innerHTML = `
+      <section class="card">
+        <div class="empty">👆 Selecciona al menos una lotería arriba para ver sus resultados.</div>
+      </section>
+    `;
+    return;
+  }
+
+  let totalRows = 0;
+  const yearsSeen = new Set();
+  const blocks = selected.map(lottery => {
+    const block = buildLotteryResultBlock(lottery, m, d, top);
+    totalRows += block.rowCount;
+    block.years.forEach(yr => yearsSeen.add(yr));
+    return block.html;
+  });
+
+  summaryEl.innerHTML = `
+    <div><div class="stat">${selected.length}</div><div class="stat-label">Loterías analizadas</div></div>
+    <div><div class="stat">${totalRows}</div><div class="stat-label">Sorteos encontrados</div></div>
+    <div><div class="stat">${pad(d)}/${pad(m)}</div><div class="stat-label">Día/Mes analizado (todos los años)</div></div>
+    <div><div class="stat">${yearsSeen.size}</div><div class="stat-label">Años distintos con datos</div></div>
+  `;
+
+  resultsEl.innerHTML = blocks.join("");
+}
+
+// Calcula ranking, palés e insights para UNA sola lotería y devuelve el
+// bloque HTML ya armado, junto con la cantidad de sorteos encontrados.
+// Combina TODOS los años del histórico para el día/mes dado: comparar por
+// año exacto no aporta nada aquí, es una sola muestra por año; lo que
+// tiene valor estadístico es acumular ese día/mes a través de los años.
+function buildLotteryResultBlock(lottery, m, d, top) {
+  const lotteryFilter = (l) => l === lottery;
 
   const rows = data.filter(r => {
-    const { y: year, m: month, d: day } = splitDate(r.date);
-    return year === y && month === m && day === d && lotteryFilter(r.lottery);
+    const { m: month, d: day } = splitDate(r.date);
+    return month === m && day === d && lotteryFilter(r.lottery);
   });
+
+  const years = [...new Set(rows.map(r => r.date.substring(0, 4)))];
+
+  let html = `<section class="card lottery-result-block">
+    <div class="lottery-result-header">
+      <h3>🎰 ${escapeHtml(lottery)}</h3>
+      <span class="badge-count">${rows.length} sorteo${rows.length === 1 ? "" : "s"} · ${years.length} año${years.length === 1 ? "" : "s"}</span>
+    </div>`;
+
+  if (rows.length === 0) {
+    html += '<div class="empty">No hay datos para esta lotería en ese día/mes, en ningún año del histórico.</div></section>';
+    return { html, rowCount: 0, years: [] };
+  }
 
   const freq = {}, pair = {}, yearFreq = {};
 
@@ -412,52 +552,44 @@ function analyze() {
   const hotNumbers = new Set(ranked.map(x => x[0]));
   const coldNumbers = allPossibleNumbers.filter(n => !hotNumbers.has(n));
 
-  document.getElementById("summary").innerHTML = `
-    <div><div class="stat">${rows.length}</div><div class="stat-label">Sorteos</div></div>
-    <div><div class="stat">${ranked.length}</div><div class="stat-label">Números distintos</div></div>
-    <div><div class="stat">${ranked[0]?.[0] || "—"}</div><div class="stat-label">Top estadístico</div></div>
-    <div><div class="stat">${pairs[0]?.[0] || "—"}</div><div class="stat-label">Palé líder</div></div>
+  // Ranking con barras de progreso CSS: los 5 más calientes resaltan en rojo/naranja
+  html += '<div class="lottery-result-sub">🔥 Ranking estadístico</div>';
+  html += `
+    <table>
+      <tr><th>#</th><th>Número</th><th>Frecuencia</th><th>Años</th><th>Puntaje</th></tr>
+      ${ranked.slice(0, top).map((x, i) => {
+        const stars = generateStars(x[3], 5);
+        const ranking_class = i < 3 ? "hot" : i < 8 ? "recommended" : "";
+        const barClass = i < 5 ? "bar-hot" : "bar-normal";
+        const widthPct = Math.max(6, (x[1] / maxFreq) * 100);
+        return `
+          <tr>
+            <td><strong>${i + 1}</strong></td>
+            <td><span class="num ${ranking_class}">${x[0]}</span></td>
+            <td>
+              <div class="progress-bar-container">
+                <div class="progress-bar">
+                  <div class="progress-fill ${barClass}" style="width: ${widthPct}%">
+                    ${x[1]}
+                  </div>
+                </div>
+                <div class="frequency-count">${x[1]}</div>
+              </div>
+            </td>
+            <td><strong>${x[2]}</strong></td>
+            <td><span class="stars">${stars}</span></td>
+          </tr>
+        `;
+      }).join("")}
+    </table>
   `;
 
-  // Ranking con barras de progreso CSS: los 5 más calientes resaltan en rojo/naranja
-  if (ranked.length) {
-    document.getElementById("ranking").innerHTML = `
-      <table>
-        <tr><th>#</th><th>Número</th><th>Frecuencia</th><th>Años</th><th>Puntaje</th></tr>
-        ${ranked.slice(0, top).map((x, i) => {
-          const stars = generateStars(x[3], 5);
-          const ranking_class = i < 3 ? "hot" : i < 8 ? "recommended" : "";
-          const barClass = i < 5 ? "bar-hot" : "bar-normal";
-          const widthPct = Math.max(6, (x[1] / maxFreq) * 100);
-          return `
-            <tr>
-              <td><strong>${i + 1}</strong></td>
-              <td><span class="num ${ranking_class}">${x[0]}</span></td>
-              <td>
-                <div class="progress-bar-container">
-                  <div class="progress-bar">
-                    <div class="progress-fill ${barClass}" style="width: ${widthPct}%">
-                      ${x[1]}
-                    </div>
-                  </div>
-                  <div class="frequency-count">${x[1]}</div>
-                </div>
-              </td>
-              <td><strong>${x[2]}</strong></td>
-              <td><span class="stars">${stars}</span></td>
-            </tr>
-          `;
-        }).join("")}
-      </table>
-    `;
-  } else {
-    document.getElementById("ranking").innerHTML = '<div class="empty">No hay datos para esa fecha/loterías seleccionadas.</div>';
-  }
+  html += '<div class="lottery-result-sub">💡 Recomendaciones inteligentes</div>';
+  html += renderIntelligentRecommendations(ranked, coldNumbers.slice(0, 5), m, d, lotteryFilter);
 
-  renderIntelligentRecommendations(ranked, coldNumbers.slice(0, 5), m, d, lotteryFilter);
-
+  html += '<div class="lottery-result-sub">🎯 Palés frecuentes</div>';
   if (pairs.length) {
-    document.getElementById("pairs").innerHTML = `
+    html += `
       <table>
         <tr><th>#</th><th>Palé</th><th>Apariciones</th></tr>
         ${pairs.slice(0, top).map((x, i) => `
@@ -470,8 +602,11 @@ function analyze() {
       </table>
     `;
   } else {
-    document.getElementById("pairs").innerHTML = '<div class="empty">No hay palés suficientes.</div>';
+    html += '<div class="empty">No hay palés suficientes.</div>';
   }
+
+  html += '</section>';
+  return { html, rowCount: rows.length, years };
 }
 
 function generateStars(score, maxScore) {
@@ -535,8 +670,7 @@ function scoreRecommendations(stats, totalSorteos) {
 
 function renderIntelligentRecommendations(ranked, coldNumbers, month, day, lotteryFilter) {
   if (ranked.length === 0) {
-    document.getElementById("insights").innerHTML = '<div class="empty">Sin datos para mostrar insights.</div>';
-    return;
+    return '<div class="empty">Sin datos para mostrar insights.</div>';
   }
 
   const { stats, totalSorteos } = buildAtrasoStats(month, day, lotteryFilter);
@@ -589,7 +723,7 @@ function renderIntelligentRecommendations(ranked, coldNumbers, month, day, lotte
   }
   html += '</div>';
 
-  document.getElementById("insights").innerHTML = html;
+  return html;
 }
 
 // ============================================
@@ -851,6 +985,13 @@ document.getElementById("lottery-selector")?.addEventListener("click", (e) => {
   const option = e.target.closest(".lottery-option[data-lottery]");
   if (!option) return;
   toggleLottery(option.dataset.lottery);
+});
+
+// Delegación para el botón "×" de cada chip de lotería seleccionada.
+document.getElementById("lottery-chips")?.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-remove-lottery]");
+  if (!btn) return;
+  toggleLottery(btn.dataset.removeLottery);
 });
 
 document.addEventListener("DOMContentLoaded", initializeData);

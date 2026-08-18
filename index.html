@@ -20,42 +20,46 @@
   <h2>🎯 Análisis Avanzado</h2>
   <div id="data-init-status"></div>
   <div class="grid">
-    <div><label>Año</label><input id="year" type="number" min="2023" max="2099" value="2025"></div>
-    <div><label>Mes</label><input id="month" type="number" min="1" max="12" value="8"></div>
-    <div><label>Día</label><input id="day" type="number" min="1" max="31" value="18"></div>
+    <div><label>Mes</label><input id="month" type="number" min="1" max="12"></div>
+    <div><label>Día</label><input id="day" type="number" min="1" max="31"></div>
     <div><label>Top</label><select id="top"><option value="10">10</option><option value="5">5</option><option value="15">15</option><option value="20">20</option></select></div>
   </div>
+  <div class="hint">El análisis combina TODOS los años del histórico para ese día y mes (no compara por año exacto).</div>
 
   <div style="margin-top:12px">
-    <label>Buscar Lotería (inteligente)</label>
-    <input id="lottery-search" type="text" placeholder="Ej: Nacional Gana   |   Nacional, Leidsa" oninput="handleLotterySearch()">
-    <div class="hint">Espacios = coincide con TODAS las palabras (Y) · Comas = coincide con CUALQUIERA (O). Vacío = usa la selección manual de abajo.</div>
-    <div class="lottery-selector" id="lottery-selector" style="margin-top:8px"></div>
+    <label>Loterías seleccionadas</label>
+    <div class="lottery-chips" id="lottery-chips">
+      <span class="muted small" id="lottery-chips-empty">Ninguna lotería seleccionada todavía.</span>
+    </div>
+
+    <div class="lottery-dropdown" id="lottery-dropdown">
+      <button type="button" class="lottery-dropdown-toggle" id="lottery-dropdown-toggle" onclick="toggleLotteryDropdown()">
+        <span id="lottery-dropdown-label">Seleccionar loterías…</span>
+        <span class="chev">▾</span>
+      </button>
+      <div class="lottery-dropdown-panel" id="lottery-dropdown-panel">
+        <input id="lottery-search" type="text" placeholder="Buscar lotería... Ej: Nacional Gana   |   Nacional, Leidsa" oninput="handleLotterySearch()">
+        <div class="hint">Espacios = coincide con TODAS las palabras (Y) · Comas = coincide con CUALQUIERA (O)</div>
+        <div class="lottery-selector" id="lottery-selector" style="margin-top:8px"></div>
+        <div class="actions" style="margin-top:8px">
+          <button class="secondary" type="button" onclick="selectAllLotteries()">Seleccionar todas</button>
+          <button class="secondary" type="button" onclick="clearAllLotteries()">Vaciar selección</button>
+        </div>
+      </div>
+    </div>
+    <div class="hint">Elige al menos una lotería para ver sus resultados (cada una se muestra por separado más abajo).</div>
   </div>
 
-  <div class="actions"><button onclick="analyze()">🔍 Analizar</button><button class="secondary" onclick="toggleAllLotteries()">Seleccionar todas</button></div>
+  <div class="actions"><button onclick="analyze()">🔍 Analizar</button></div>
   <div id="summary" class="grid" style="margin-top:14px"></div>
 </section>
 
-<section class="card">
-  <h2>🔥 Ranking Estadístico</h2>
-  <div id="ranking"></div>
-</section>
-
-<section class="card">
-  <h2>💡 Recomendaciones Inteligentes</h2>
-  <div id="insights"></div>
-</section>
-
-<section class="card">
-  <h2>🎯 Palés Frecuentes</h2>
-  <div id="pairs"></div>
-</section>
+<div id="results-container"></div>
 
 <section class="card settings-section">
   <h2>⚙️ Configuración</h2>
   <div class="data-status" id="data-source-badge" style="display:none"></div>
-  <p class="muted">CSV: <b>fecha,loteria,n1,n2,n3</b>. Ejemplo: 2025-08-18,Leidsa,12,34,56</p>
+  <p class="muted">CSV: <b>fecha,loteria,n1,n2,n3</b>. Ejemplo: 2025-08-18,Leidsa,12,34,56 (el año se guarda pero el análisis combina todos los años)</p>
   <input id="file" type="file" accept=".csv,text/csv">
   <div class="actions">
     <button onclick="importCSV()">Importar CSV</button>

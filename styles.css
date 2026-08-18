@@ -438,3 +438,123 @@ th {
   font-size: 10px;
   opacity: .85;
 }
+
+/* ---- Chips de loterías seleccionadas ---- */
+.lottery-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  min-height: 32px;
+  align-items: center;
+}
+.lottery-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: #ccfbf1;
+  color: #0f766e;
+  border: 1px solid #99f6e4;
+  border-radius: 999px;
+  padding: 5px 6px 5px 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+.lottery-chip button {
+  width: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: #0f766e;
+  font-weight: 900;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.lottery-chip button:hover {
+  background: #99f6e4;
+  transform: none;
+  box-shadow: none;
+}
+
+/* ---- Dropdown de loterías ---- */
+.lottery-dropdown {
+  position: relative;
+}
+.lottery-dropdown-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #fff;
+  color: #17202a;
+  border: 1px solid #d1d5db;
+  text-align: left;
+  font-weight: 600;
+}
+.lottery-dropdown-toggle:hover {
+  background: #f8fafc;
+  transform: none;
+  box-shadow: none;
+}
+.lottery-dropdown-toggle .chev {
+  transition: transform .15s;
+  color: #64748b;
+}
+.lottery-dropdown.open .lottery-dropdown-toggle .chev {
+  transform: rotate(180deg);
+}
+.lottery-dropdown-panel {
+  display: none;
+  position: absolute;
+  z-index: 50;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 10px;
+  box-shadow: 0 10px 30px #0002;
+}
+.lottery-dropdown.open .lottery-dropdown-panel {
+  display: block;
+}
+
+/* ---- Resultados por lotería ---- */
+.lottery-result-block {
+  margin-bottom: 15px;
+}
+.lottery-result-block:last-child {
+  margin-bottom: 0;
+}
+.lottery-result-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+.lottery-result-header h3 {
+  margin: 0;
+  font-size: 17px;
+  color: #0f766e;
+}
+.lottery-result-header .badge-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: #64748b;
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 3px 10px;
+}
+.lottery-result-sub {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  margin: 14px 0 6px;
+}
