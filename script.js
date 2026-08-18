@@ -1797,13 +1797,127 @@ function runSimulationFromUI() {
 }
 
 function populateSimLotterySelect() {
-  const sel = document.getElementById("sim-lottery");
-  if (!sel) return;
-  const previous = sel.value;
-  sel.innerHTML = allLotteries.length
-    ? allLotteries.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join("")
-    : '<option value="">Sin loterías cargadas</option>';
-  if (allLotteries.includes(previous)) sel.value = previous;
+  const selects = document.querySelectorAll("select.single-lottery-select");
+  selects.forEach(sel => {
+    const previous = sel.value;
+    sel.innerHTML = allLotteries.length
+      ? allLotteries.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join("")
+      : '<option value="">Sin loterías cargadas</option>';
+    if (allLotteries.includes(previous)) sel.value = previous;
+  });
+}
+
+// ============================================
+// V9 · TENDENCIA RECIENTE (idea tomada de portales como elboletoganador.com)
+// El resto de la app compara "este día/mes contra TODOS los años" — útil
+// para el patrón de largo plazo, pero no responde "¿qué viene pasando
+// ÚLTIMAMENTE en esta lotería?". Esta sección mira solo los últimos N
+// sorteos CRONOLÓGICOS de la lotería (por defecto 60, como el "Top 10 en 60
+// sorteos" de esos portales) y calcula:
+//   1) Los números más frecuentes en esa ventana reciente.
+//   2) Qué decenas y terminaciones llevan MÁS sorteos sin aparecer dentro de
+//      esa misma ventana ("atraso"), que es la idea de "números/decenas/
+//      terminaciones atrasadas" que usan varios portales de estadísticas de
+//      lotería en RD.
+// No se incluyó su "Tabla de Unidades" tal cual: no quedó claro en el sitio
+// si mide algo distinto de la terminación (último dígito) que ya cubrimos
+// aquí, así que se dejó afuera para no duplicar con un nombre inventado.
+// ============================================
+function getRecentDraws(lottery, windowSize) {
+  return [...data]
+    .filter(r => r.lottery === lottery)
+    .sort((a, b) => a.date.localeCompare(b.date)) // cronológico ascendente
+    .slice(-windowSize);
+}
+
+function computeRecentHotNumbers(recentDraws) {
+  const freq = {};
+  recentDraws.forEach(r => {
+    [...new Set(r.numbers)].forEach(n => { freq[n] = (freq[n] || 0) + 1; });
+  });
+  return Object.entries(freq).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+}
+
+// keyFn agrupa cada número (ej: decena o terminación); allKeys son todos los
+// grupos posibles, para que un grupo que nunca salió en la ventana también
+// aparezca (con "atraso" = tamaño total de la ventana), en vez de faltar
+// silenciosamente.
+function computeOverdueStats(recentDraws, keyFn, allKeys) {
+  const lastSeenIndex = {};
+  recentDraws.forEach((r, idx) => {
+    [...new Set(r.numbers)].forEach(n => {
+      lastSeenIndex[keyFn(n)] = idx; // se sobreescribe con el índice más reciente
+    });
+  });
+  const total = recentDraws.length;
+  return allKeys
+    .map(key => {
+      const idx = lastSeenIndex[key];
+      const seen = idx !== undefined;
+      return { key, seen, overdue: seen ? total - 1 - idx : total };
+    })
+    .sort((a, b) => b.overdue - a.overdue || a.key.localeCompare(b.key));
+}
+
+function buildRecentTrendHtml(lottery, windowSize) {
+  const recentDraws = getRecentDraws(lottery, windowSize);
+  if (recentDraws.length === 0) {
+    return '<div class="empty">No hay sorteos cargados para esta lotería.</div>';
+  }
+  const usedWindow = recentDraws.length;
+  const hot = computeRecentHotNumbers(recentDraws).slice(0, 10);
+
+  const decadeKeys = Array.from({ length: 10 }, (_, i) => `${i}0–${i}9`);
+  const decadeOf = n => { const idx = Math.floor(Number(n) / 10); return `${idx}0–${idx}9`; };
+  const decadeOverdue = computeOverdueStats(recentDraws, decadeOf, decadeKeys);
+
+  const termKeys = Array.from({ length: 10 }, (_, i) => String(i));
+  const termOf = n => n.slice(-1);
+  const termOverdue = computeOverdueStats(recentDraws, termOf, termKeys);
+
+  let html = `<div class="hint">Ventana analizada: los últimos ${usedWindow} sorteo${usedWindow === 1 ? "" : "s"} cargados de esta lotería, en orden cronológico${usedWindow < windowSize ? ` (pediste ${windowSize}, pero el histórico cargado de esta lotería solo tiene ${usedWindow})` : ""}.</div>`;
+
+  html += '<div class="lottery-result-sub">🔥 Números más frecuentes en la ventana reciente</div>';
+  html += hot.length
+    ? `<table><tr><th>Número</th><th>Apariciones</th></tr>${hot.map(([n, c]) => `<tr><td><span class="num hot">${n}</span></td><td><strong>${c}</strong> de ${usedWindow}</td></tr>`).join("")}</table>`
+    : '<div class="empty">Sin datos.</div>';
+
+  html += '<div class="lottery-result-sub">❄️ Decenas más atrasadas</div>';
+  html += `<table><tr><th>Decena</th><th>Atraso</th></tr>${decadeOverdue.map(x => `
+    <tr>
+      <td><span class="num cold">${x.key}</span></td>
+      <td>${x.seen ? `<strong>${x.overdue}</strong> sorteo${x.overdue === 1 ? "" : "s"} sin salir` : "no salió en ningún sorteo de la ventana"}</td>
+    </tr>
+  `).join("")}</table>`;
+
+  html += '<div class="lottery-result-sub">❄️ Terminaciones más atrasadas</div>';
+  html += `<table><tr><th>Terminación</th><th>Atraso</th></tr>${termOverdue.map(x => `
+    <tr>
+      <td><span class="num cold">…${x.key}</span></td>
+      <td>${x.seen ? `<strong>${x.overdue}</strong> sorteo${x.overdue === 1 ? "" : "s"} sin salir` : "no salió en ningún sorteo de la ventana"}</td>
+    </tr>
+  `).join("")}</table>`;
+
+  html += '<div class="warning">⚠️ "Atraso" = cuántos sorteos de esta ventana pasaron desde la última vez que apareció ese grupo. Es la misma idea de "números/decenas atrasadas" que usan varios portales de estadísticas de lotería en RD: describe el histórico cargado, no predice ni cambia la probabilidad matemática del próximo sorteo.</div>';
+
+  return html;
+}
+
+function runRecentTrendFromUI() {
+  const lottery = document.getElementById("recent-lottery")?.value || "";
+  const windowSize = Math.max(1, +(document.getElementById("recent-window")?.value || 60));
+  const resultsEl = document.getElementById("recent-results");
+  if (!resultsEl) return;
+
+  if (!lottery) {
+    resultsEl.innerHTML = '<div class="empty">Elige una lotería.</div>';
+    return;
+  }
+
+  resultsEl.innerHTML = `<section class="card lottery-result-block">
+    <div class="lottery-result-header"><h3>🕐 ${escapeHtml(lottery)}</h3></div>
+    ${buildRecentTrendHtml(lottery, windowSize)}
+  </section>`;
 }
 
 // ============================================

@@ -60,12 +60,23 @@
   <h2>🧪 Simulador de Jugadas (V8)</h2>
   <p class="muted small">Elige una lotería y una fecha: la app genera el ranking y los palés candidatos usando SOLO sorteos <b>anteriores</b> a esa fecha (nunca la fecha simulada ni nada posterior). Si ya tienes cargado el resultado real de ese día, lo compara automáticamente número por número.</p>
   <div class="grid">
-    <div><label>Lotería</label><select id="sim-lottery"></select></div>
+    <div><label>Lotería</label><select id="sim-lottery" class="single-lottery-select"></select></div>
     <div><label>Fecha a simular</label><input id="sim-date" type="date"></div>
     <div><label>Top</label><select id="sim-top"><option value="10">10</option><option value="5">5</option><option value="15">15</option><option value="20">20</option></select></div>
   </div>
   <div class="actions"><button onclick="runSimulationFromUI()">🧪 Simular</button></div>
   <div id="sim-results" style="margin-top:14px"></div>
+</section>
+
+<section class="card">
+  <h2>🕐 Tendencia reciente (V9)</h2>
+  <p class="muted small">Idea tomada de portales de estadísticas de lotería en RD: en vez de comparar contra todos los años, mira solo los últimos N sorteos de la lotería elegida y muestra los números más frecuentes en esa ventana, además de qué decenas y terminaciones llevan más sorteos sin salir ("atrasadas").</p>
+  <div class="grid">
+    <div><label>Lotería</label><select id="recent-lottery" class="single-lottery-select"></select></div>
+    <div><label>Últimos N sorteos</label><input id="recent-window" type="number" min="5" max="500" value="60"></div>
+  </div>
+  <div class="actions"><button onclick="runRecentTrendFromUI()">🕐 Ver tendencia reciente</button></div>
+  <div id="recent-results" style="margin-top:14px"></div>
 </section>
 
 <section class="card settings-section">
