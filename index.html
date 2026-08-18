@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Estadísticas RD · Versión 4 Pro</title>
+<title>Estadísticas RD · Versión 4</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <header>
-  <h1>📊 Estadísticas Loterías RD — V4 Pro</h1>
-  <p>Análisis histórico completo • Frecuencia • Números calientes & fríos</p>
+  <h1>📊 Estadísticas Loterías RD — V4</h1>
+  <p>Análisis histórico completo • Frecuencia ponderada • Palés destacados • Comparación de fechas</p>
   <div class="meta" id="data-source">Inicializando...</div>
   <div class="sync-banner" id="sync-banner"></div>
   <button class="settings-btn" onclick="toggleSettings()" title="Configuración">⚙️</button>
@@ -24,7 +24,7 @@
     <div><label>Día</label><input id="day" type="number" min="1" max="31"></div>
     <div><label>Top</label><select id="top"><option value="10">10</option><option value="5">5</option><option value="15">15</option><option value="20">20</option></select></div>
   </div>
-  <div class="hint">El análisis combina TODOS los años del histórico para ese día y mes (no compara por año exacto).</div>
+  <div class="hint">El análisis combina TODOS los años del histórico para ese día y mes (no compara por año exacto). Cada bloque de resultados también compara automáticamente contra el día calendario anterior (ej: 18 de agosto vs. 17 de agosto).</div>
 
   <div style="margin-top:12px">
     <label>Loterías seleccionadas</label>
