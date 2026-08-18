@@ -1,96 +1,80 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>🎯 Recomendaciones Inteligentes · Loterías RD</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Estadísticas RD · Versión 4 Pro</title>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <div class="container">
-    <header>
-      <h1>🎯 Recomendaciones Inteligentes</h1>
-      <p class="subtitle">Análisis estadístico real · Sin números aleatorios</p>
-      <div class="badge" id="data-info">📊 Cargando datos...</div>
-    </header>
+<header>
+  <h1>📊 Estadísticas Loterías RD — V4 Pro</h1>
+  <p>Análisis histórico completo • Frecuencia • Números calientes & fríos</p>
+  <div class="meta" id="data-source">Inicializando...</div>
+  <div class="sync-banner" id="sync-banner"></div>
+  <button class="settings-btn" onclick="toggleSettings()" title="Configuración">⚙️</button>
+</header>
 
-    <!-- Panel de control -->
-    <section class="card controls">
-      <div class="controls-grid">
-        <div class="control-group">
-          <label>📅 Fecha</label>
-          <div class="date-inputs">
-            <input type="number" id="year" value="2025" min="2020" max="2099">
-            <span class="sep">-</span>
-            <input type="number" id="month" value="8" min="1" max="12">
-            <span class="sep">-</span>
-            <input type="number" id="day" value="18" min="1" max="31">
-          </div>
-        </div>
-        <div class="control-group">
-          <label>🎲 Top</label>
-          <select id="topN">
-            <option value="3" selected>3</option>
-            <option value="5">5</option>
-            <option value="10">10</option>
-            <option value="20">20</option>
-          </select>
-        </div>
-        <div class="control-group">
-          <label>&nbsp;</label>
-          <button onclick="calcularRecomendaciones()">⟳ Actualizar</button>
-        </div>
-      </div>
-      <div class="stats-row" id="stats-resumen">
-        <span class="stat-item">📌 Sorteos analizados: <strong id="total-sort">0</strong></span>
-        <span class="stat-item">🔢 Números distintos: <strong id="total-nums">0</strong></span>
-        <span class="stat-item">📈 Media esperada: <strong id="media-esperada">0</strong></span>
-      </div>
-    </section>
-
-    <!-- TOP 3 Recomendaciones -->
-    <section class="card recomendaciones">
-      <h2>💡 Recomendaciones Inteligentes <span class="tag">Top 3</span></h2>
-      <div id="top3-cards">
-        <!-- Inyectado por JS -->
-      </div>
-      <div id="detalle-top3">
-        <!-- Inyectado por JS -->
-      </div>
-    </section>
-
-    <!-- Ranking Combinado -->
-    <section class="card ranking">
-      <h2>📊 Ranking Combinado <span class="tag">Score</span></h2>
-      <div class="table-wrapper">
-        <table>
-          <thead>
-            <tr>
-              <th>#</th>
-              <th>Número</th>
-              <th>Frec. (Fj)</th>
-              <th>Atraso (Ai)</th>
-              <th>Desviación</th>
-              <th>Score</th>
-              <th>Prob. %</th>
-            </tr>
-          </thead>
-          <tbody id="ranking-body">
-            <!-- Inyectado por JS -->
-          </tbody>
-        </table>
-      </div>
-      <div class="hint">
-        ⚡ Score = (Frecuencia × 0.6) + (Atraso × 0.4) · Desviación Poisson > 1.96 = 🔥 Caliente, &lt; -1.96 = ❄️ Frío
-      </div>
-    </section>
-
-    <!-- Footer -->
-    <footer class="footer">
-      Datos históricos reales · Sin números aleatorios · Aproximación Poisson para desviación media
-    </footer>
+<main>
+<section class="card">
+  <h2>🎯 Análisis Avanzado</h2>
+  <div id="data-init-status"></div>
+  <div class="grid">
+    <div><label>Año</label><input id="year" type="number" min="2023" max="2099" value="2025"></div>
+    <div><label>Mes</label><input id="month" type="number" min="1" max="12" value="8"></div>
+    <div><label>Día</label><input id="day" type="number" min="1" max="31" value="18"></div>
+    <div><label>Top</label><select id="top"><option value="10">10</option><option value="5">5</option><option value="15">15</option><option value="20">20</option></select></div>
   </div>
 
-  <script src="app.js"></script>
+  <div style="margin-top:12px">
+    <label>Buscar Lotería (inteligente)</label>
+    <input id="lottery-search" type="text" placeholder="Ej: Nacional Gana   |   Nacional, Leidsa" oninput="handleLotterySearch()">
+    <div class="hint">Espacios = coincide con TODAS las palabras (Y) · Comas = coincide con CUALQUIERA (O). Vacío = usa la selección manual de abajo.</div>
+    <div class="lottery-selector" id="lottery-selector" style="margin-top:8px"></div>
+  </div>
+
+  <div class="actions"><button onclick="analyze()">🔍 Analizar</button><button class="secondary" onclick="toggleAllLotteries()">Seleccionar todas</button></div>
+  <div id="summary" class="grid" style="margin-top:14px"></div>
+</section>
+
+<section class="card">
+  <h2>🔥 Ranking Estadístico</h2>
+  <div id="ranking"></div>
+</section>
+
+<section class="card">
+  <h2>💡 Recomendaciones Inteligentes</h2>
+  <div id="insights"></div>
+</section>
+
+<section class="card">
+  <h2>🎯 Palés Frecuentes</h2>
+  <div id="pairs"></div>
+</section>
+
+<section class="card settings-section">
+  <h2>⚙️ Configuración</h2>
+  <div class="data-status" id="data-source-badge" style="display:none"></div>
+  <p class="muted">CSV: <b>fecha,loteria,n1,n2,n3</b>. Ejemplo: 2025-08-18,Leidsa,12,34,56</p>
+  <input id="file" type="file" accept=".csv,text/csv">
+  <div class="actions">
+    <button onclick="importCSV()">Importar CSV</button>
+    <button class="secondary" onclick="downloadCSV()">Exportar histórico</button>
+    <button class="secondary" onclick="refreshRemoteData(event)">Actualizar datos remotos</button>
+    <button class="secondary" onclick="toggleHistory()">Ver tabla de datos</button>
+    <button class="danger" onclick="resetData()">Restaurar datos iniciales</button>
+  </div>
+  <p id="status" class="muted" style="margin-top:8px"></p>
+</section>
+
+<section class="card history-section">
+  <h2>📚 Datos Cargados (<span id="total-records">0</span> registros)</h2>
+  <div id="history"></div>
+  <div class="good small" style="margin-top:12px">✓ Base con 3+ años de histórico. Datos remoto se sincroniza automáticamente.</div>
+  <div class="warning small">⚠️ El ranking describe frecuencias históricas. No predice sorteos ni cambia probabilidades matemáticas.</div>
+</section>
+</main>
+
+<script src="script.js" defer></script>
 </body>
 </html>
