@@ -51,6 +51,29 @@ const KEY = "loteria_rd_v4";
 const REMOTE_JSON_URL = "https://raw.githubusercontent.com/francisdominguez/loterias-rd-data/main/data.json";
 const REMOTE_DATA_KEY = "loteria_rd_remote_timestamp";
 const SELECTED_LOTTERIES_KEY = "loteria_rd_selected";
+const SCHEDULE_KEY = "loteria_rd_schedule";
+
+// Horarios APROXIMADOS de referencia pública (lunes a sábado). Varían los
+// domingos/feriados y pueden cambiar según el operador, por eso son solo
+// un punto de partida: el usuario los puede editar en Configuración y esa
+// edición se guarda en localStorage, con prioridad sobre este valor por
+// defecto. Las loterías sin horario confirmado quedan vacías a propósito
+// (mejor no mostrar nada que mostrar una hora inventada).
+const DEFAULT_SCHEDULE = {
+  "Nacional Gana Más": "2:30 PM",
+  "Nacional Noche": "9:00 PM",
+  "Quiniela Palé": "8:55 PM",
+  "Pega 3 Más": "8:55 PM",
+  "Quiniela Real": "12:55 PM",
+  "Quiniela Loteka": "7:55 PM",
+  "Mega Chance": "7:55 PM",
+  "La Primera": "12:00 PM",
+  "La Suerte": "12:30 PM",
+  "La Suerte 6PM": "6:00 PM",
+  "Lotedom": "2:55 PM"
+};
+
+let lotterySchedule = {};
 
 let data = [];
 let dataSource = "seed";
@@ -73,10 +96,51 @@ function setDefaultDateInputs() {
 }
 
 // ============================================
+// HORARIOS DE SORTEO (editables por el usuario)
+// ============================================
+function loadSchedule() {
+  const saved = safeParseJSON(localStorage.getItem(SCHEDULE_KEY)) || {};
+  lotterySchedule = { ...DEFAULT_SCHEDULE, ...saved };
+}
+
+function getScheduleFor(lottery) {
+  return (lotterySchedule[lottery] || "").trim();
+}
+
+function saveScheduleFromEditor() {
+  const inputs = document.querySelectorAll("#schedule-editor [data-schedule-lottery]");
+  inputs.forEach(inp => {
+    lotterySchedule[inp.dataset.scheduleLottery] = inp.value.trim();
+  });
+  localStorage.setItem(SCHEDULE_KEY, JSON.stringify(lotterySchedule));
+  renderLotterySelector();
+  analyze();
+  setStatus("✓ Horarios guardados.", true);
+}
+
+function renderScheduleEditor() {
+  const container = document.getElementById("schedule-editor");
+  if (!container) return;
+  if (allLotteries.length === 0) {
+    container.innerHTML = '<div class="muted small">Aún no hay loterías cargadas.</div>';
+    return;
+  }
+  container.innerHTML = allLotteries
+    .map(l => `
+      <div class="schedule-row">
+        <label class="small">${escapeHtml(l)}</label>
+        <input type="text" data-schedule-lottery="${escapeHtml(l)}" value="${escapeHtml(getScheduleFor(l))}" placeholder="Ej: 8:55 PM">
+      </div>
+    `)
+    .join("");
+}
+
+// ============================================
 // INICIALIZACIÓN
 // ============================================
 async function initializeData() {
   setDefaultDateInputs();
+  loadSchedule();
   const statusEl = document.getElementById("data-init-status");
   statusEl.innerHTML = '<div class="loading"><div class="spinner"></div><span>Cargando datos...</span></div>';
 
@@ -197,6 +261,7 @@ function buildLotteryList() {
 
   renderLotterySelector();
   renderSelectedChips();
+  renderScheduleEditor();
 }
 
 function persistSelection() {
@@ -220,12 +285,16 @@ function renderLotterySelector() {
   // rompía el atributo/HTML. Ahora se escapa con escapeHtml() y el click
   // se maneja por delegación de eventos (ver listener más abajo).
   selector.innerHTML = visible
-    .map(lottery => `
+    .map(lottery => {
+      const hour = getScheduleFor(lottery);
+      return `
       <div class="lottery-option ${selectedLotteries.has(lottery) ? "selected" : ""}"
            data-lottery="${escapeHtml(lottery)}">
-        ${selectedLotteries.has(lottery) ? "✓ " : ""}${escapeHtml(lottery)}
+        <span class="lottery-option-name">${selectedLotteries.has(lottery) ? "✓ " : ""}${escapeHtml(lottery)}</span>
+        <span class="lottery-option-hour">${hour ? "🕒 " + escapeHtml(hour) : "Horario no confirmado"}</span>
       </div>
-    `)
+    `;
+    })
     .join("");
 }
 
@@ -505,16 +574,21 @@ function buildLotteryResultBlock(lottery, m, d, top) {
   });
 
   const years = [...new Set(rows.map(r => r.date.substring(0, 4)))];
+  const hour = getScheduleFor(lottery);
 
   let html = `<section class="card lottery-result-block">
     <div class="lottery-result-header">
-      <h3>🎰 ${escapeHtml(lottery)}</h3>
+      <h3>🎰 ${escapeHtml(lottery)}${hour ? ` <span class="lottery-hour-tag">🕒 ${escapeHtml(hour)}</span>` : ""}</h3>
       <span class="badge-count">${rows.length} sorteo${rows.length === 1 ? "" : "s"} · ${years.length} año${years.length === 1 ? "" : "s"}</span>
     </div>`;
 
   if (rows.length === 0) {
     html += '<div class="empty">No hay datos para esta lotería en ese día/mes, en ningún año del histórico.</div></section>';
     return { html, rowCount: 0, years: [] };
+  }
+
+  if (years.length <= 1) {
+    html += `<div class="hint">Ya se están comparando TODOS los años de tu histórico para este día/mes — es que solo tienes ${years.length} año cargado para esta lotería en esa fecha. Importa más historial (CSV) o actualiza los datos remotos para comparar más años.</div>`;
   }
 
   const freq = {}, pair = {}, yearFreq = {};

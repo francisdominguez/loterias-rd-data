@@ -558,3 +558,48 @@ th {
   color: #334155;
   margin: 14px 0 6px;
 }
+
+/* ---- Hora del sorteo dentro de cada opción del dropdown ---- */
+.lottery-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.lottery-option-name {
+  flex: 1;
+}
+.lottery-option-hour {
+  font-size: 11px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+/* ---- Hora del sorteo junto al nombre en cada bloque de resultados ---- */
+.lottery-hour-tag {
+  font-size: 12px;
+  font-weight: 700;
+  color: #0f766e;
+  background: #ccfbf1;
+  border-radius: 999px;
+  padding: 2px 10px;
+  vertical-align: middle;
+}
+
+/* ---- Editor de horarios (Configuración) ---- */
+.schedule-row {
+  display: grid;
+  grid-template-columns: 1fr 130px;
+  gap: 10px;
+  align-items: center;
+  padding: 6px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+.schedule-row label {
+  margin: 0;
+  font-weight: 600;
+  color: #334155;
+}
+.schedule-row input {
+  padding: 6px 8px;
+}

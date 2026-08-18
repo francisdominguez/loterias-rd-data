@@ -69,6 +69,13 @@
     <button class="danger" onclick="resetData()">Restaurar datos iniciales</button>
   </div>
   <p id="status" class="muted" style="margin-top:8px"></p>
+
+  <h3 style="margin-top:18px;font-size:15px">🕒 Horarios de los sorteos</h3>
+  <p class="muted small">Horarios de referencia (lunes a sábado), pueden variar domingos/feriados o cambiar con el tiempo. Ajústalos si no coinciden con la realidad.</p>
+  <div id="schedule-editor"></div>
+  <div class="actions" style="margin-top:8px">
+    <button class="secondary" type="button" onclick="saveScheduleFromEditor()">Guardar horarios</button>
+  </div>
 </section>
 
 <section class="card history-section">
