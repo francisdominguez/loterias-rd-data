@@ -314,6 +314,7 @@ function buildLotteryList() {
   renderLotterySelector();
   renderSelectedChips();
   renderScheduleEditor();
+  populateSimLotterySelect();
 }
 
 function persistSelection() {
@@ -571,6 +572,16 @@ function compareDateStrings(a, b) {
 // donde el caso 29 de febrero es un borde poco relevante para este uso).
 const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
 
+// Nombres de días de la semana (índice = getUTCDay(): 0 = domingo).
+const WEEKDAY_NAMES_ES = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+
+// Umbrales mínimos para animarse a decir "esta lotería no sortea tal día".
+// Con muy pocos sorteos o un rango de fechas muy corto, la ausencia de un
+// día de la semana en el histórico probablemente sea falta de datos
+// cargados, no un patrón real de la lotería.
+const MIN_SAMPLE_FOR_SCHEDULE_INFERENCE = 10;
+const MIN_SPAN_DAYS_FOR_SCHEDULE_INFERENCE = 20;
+
 // Devuelve {m, d} del día calendario anterior a (month, day), cruzando de
 // mes cuando corresponde (ej: 1 de marzo -> 28 de febrero). Se usa SOLO para
 // la comparación automática de fechas (V4), nunca para ordenar/comparar
@@ -786,14 +797,18 @@ function buildDecadeSection(freq) {
 // días: 15 a 21 de agosto) a través de todos los años, y muestra qué
 // números tienen más presencia combinada en esos días cercanos.
 // ============================================
-function computeWindowStats(month, day, lottery, radius = 3) {
+// sourceRows: dataset sobre el que se calcula (por defecto, todo `data`).
+// El Simulador de Jugadas (V8) le pasa un subconjunto ya recortado a "solo
+// datos anteriores a la fecha simulada", para que la ventana ±3 días del
+// backtest tampoco se filtre con información del futuro.
+function computeWindowStats(month, day, lottery, radius = 3, sourceRows = data) {
   const offsets = [];
   for (let off = -radius; off <= radius; off++) offsets.push(off);
   const combinedFreq = {};
   const perOffsetLabel = [];
   offsets.forEach(off => {
     const { m, d } = shiftCalendarDay(month, day, off);
-    const matched = data.filter(r => {
+    const matched = sourceRows.filter(r => {
       const { m: rm, d: rd } = splitDate(r.date);
       return rm === m && rd === d && r.lottery === lottery;
     });
@@ -823,6 +838,59 @@ function buildWindowSection(windowStats, exactFreq) {
         </tr>
       `).join("")}
     </table>
+  `;
+}
+
+// ============================================
+// V5.1 · ¿ESTA LOTERÍA SORTEA TODOS LOS DÍAS?
+// Mira TODO el histórico cargado de la lotería (sin filtrar por fecha) y
+// junta qué días de la semana tienen al menos un registro. Si, con muestra
+// suficiente, algún día de la semana nunca aparece, es razonable asumir que
+// esa lotería no sortea ese día — así "0 resultados en la fecha exacta" dej
+// de sentirse como un error de carga cuando en realidad es un día sin
+// sorteo. Requiere un mínimo de sorteos Y de rango de fechas para no sacar
+// conclusiones de un histórico todavía muy chico.
+// ============================================
+function computeDrawDaysOfWeek(lottery) {
+  const rowsAll = data.filter(r => r.lottery === lottery);
+  if (rowsAll.length === 0) return null;
+
+  const present = new Set();
+  let minDate = rowsAll[0].date, maxDate = rowsAll[0].date;
+  rowsAll.forEach(r => {
+    const { y, m, d } = splitDate(r.date);
+    present.add(new Date(Date.UTC(y, m - 1, d)).getUTCDay());
+    if (r.date < minDate) minDate = r.date;
+    if (r.date > maxDate) maxDate = r.date;
+  });
+
+  const spanDays = Math.round(
+    (new Date(maxDate + "T00:00:00Z") - new Date(minDate + "T00:00:00Z")) / 86400000
+  );
+
+  return { present, sampleSize: rowsAll.length, spanDays };
+}
+
+// Devuelve el HTML del aviso (o "" si sortea todos los días, o si todavía
+// no hay muestra suficiente para afirmarlo con confianza).
+function buildNonDailyScheduleNotice(lottery) {
+  const stats = computeDrawDaysOfWeek(lottery);
+  if (!stats || stats.present.size >= 7) return "";
+  if (
+    stats.sampleSize < MIN_SAMPLE_FOR_SCHEDULE_INFERENCE ||
+    stats.spanDays < MIN_SPAN_DAYS_FOR_SCHEDULE_INFERENCE
+  ) {
+    return "";
+  }
+
+  const allDows = [0, 1, 2, 3, 4, 5, 6];
+  const drawDays = allDows.filter(dow => stats.present.has(dow)).map(dow => WEEKDAY_NAMES_ES[dow]);
+  const skipDays = allDows.filter(dow => !stats.present.has(dow)).map(dow => WEEKDAY_NAMES_ES[dow]);
+
+  return `
+    <div class="warning">
+      ℹ️ Según tu histórico cargado (${stats.sampleSize} sorteos en un rango de ${stats.spanDays} días), <strong>${escapeHtml(lottery)}</strong> nunca tiene registros los <strong>${skipDays.join(" ni los ")}</strong>. Sortea normalmente ${drawDays.join(", ")}. Si la fecha que estás buscando cae justo en un día sin sorteo, 0 resultados en la fecha exacta es esperable — no un fallo de carga de datos.
+    </div>
   `;
 }
 
@@ -947,37 +1015,18 @@ function explainNumberScore(x, month, day, paleCount, terminationRank) {
   `;
 }
 
-// Calcula ranking, palés e insights para UNA sola lotería y devuelve el
-// bloque HTML ya armado, junto con la cantidad de sorteos encontrados.
-// Combina TODOS los años del histórico para el día/mes dado: comparar por
-// año exacto no aporta nada aquí, es una sola muestra por año; lo que
-// tiene valor estadístico es acumular ese día/mes a través de los años.
-function buildLotteryResultBlock(lottery, m, d, top) {
-  const lotteryFilter = (l) => l === lottery;
-
-  const rows = data.filter(r => {
-    const { m: month, d: day } = splitDate(r.date);
-    return month === m && day === d && lotteryFilter(r.lottery);
-  });
-
-  const years = [...new Set(rows.map(r => r.date.substring(0, 4)))];
-  const hour = getScheduleFor(lottery);
-
-  let html = `<section class="card lottery-result-block">
-    <div class="lottery-result-header">
-      <h3>🎰 ${escapeHtml(lottery)}${hour ? ` <span class="lottery-hour-tag">🕒 ${escapeHtml(hour)}</span>` : ""}</h3>
-      <span class="badge-count">${rows.length} sorteo${rows.length === 1 ? "" : "s"} · ${years.length} año${years.length === 1 ? "" : "s"}</span>
-    </div>`;
-
-  if (rows.length === 0) {
-    html += '<div class="empty">No hay datos para esta lotería en ese día/mes, en ningún año del histórico.</div></section>';
-    return { html, rowCount: 0, years: [] };
-  }
-
-  if (years.length <= 1) {
-    html += `<div class="hint">Ya se están comparando TODOS los años de tu histórico para este día/mes — es que solo tienes ${years.length} año cargado para esta lotería en esa fecha. Importa más historial (CSV) o actualiza los datos remotos para comparar más años.</div>`;
-  }
-
+// ============================================
+// NÚCLEO DEL RANKING (extraído para poder reutilizarlo también en el
+// Simulador de Jugadas / backtesting — V8).
+// `rows` = sorteos de ESA lotería que ya caen en el día/mes buscado (todos
+// los años combinados). `windowSourceRows` = dataset sobre el que se calcula
+// la ventana ±3 días; en el análisis normal es todo `data`, pero en el
+// backtest del simulador es solo lo anterior a la fecha simulada, para que
+// el puntaje del backtest jamás use información posterior a esa fecha.
+// Misma fórmula de siempre: 20% frecuencia + 20% años + 20% tendencia
+// reciente + 15% ventana de fechas + 15% palés + 10% espejo/terminación.
+// ============================================
+function computeLotteryRanking(rows, lottery, m, d, windowSourceRows = data) {
   const freq = {}, pair = {}, yearFreq = {}, weightedFreq = {}, terminationFreq = {};
 
   rows.forEach(r => {
@@ -1005,9 +1054,7 @@ function buildLotteryResultBlock(lottery, m, d, top) {
   const maxWeighted = Math.max(...Object.values(weightedFreq), 0.0001);
   const maxYears = Math.max(...Object.values(yearFreq).map(y => Object.keys(y).length), 1);
 
-  // V5: componentes adicionales del puntaje — ventana alrededor de la fecha,
-  // fuerza en palés, y espejo/terminación.
-  const windowStats = computeWindowStats(m, d, lottery, 3);
+  const windowStats = computeWindowStats(m, d, lottery, 3, windowSourceRows);
   const paleFreqPerNumber = {};
   Object.entries(pair).forEach(([key, count]) => {
     const [a, b] = key.split("–");
@@ -1024,13 +1071,6 @@ function buildLotteryResultBlock(lottery, m, d, top) {
   const maxPaleFreq = Math.max(...Object.values(paleFreqPerNumber), 1);
   const maxTermination = Math.max(...Object.values(terminationFreq), 1);
 
-  // Puntaje transparente del ranking de números (V5):
-  //   20% frecuencia histórica bruta + 20% años distintos + 20% tendencia
-  //   reciente (frecuencia ponderada por antigüedad) + 15% comportamiento
-  //   en la ventana de fechas cercanas (±3 días) + 15% fuerza en palés
-  //   + 10% espejo/terminación. Cada componente se normaliza 0-100 contra
-  //   el máximo observado en ESTA lotería/fecha. Nunca se usa para afirmar
-  //   que un número "va a salir": ver buildConfidencePanel y explainNumberScore.
   const ranked = Object.entries(freq)
     .map(([n, c]) => {
       const years = Object.keys(yearFreq[n] || {}).length;
@@ -1054,6 +1094,64 @@ function buildLotteryResultBlock(lottery, m, d, top) {
 
   const pairs = Object.entries(pair)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+  return {
+    freq, pair, yearFreq, weightedFreq, terminationFreq, windowStats,
+    paleFreqPerNumber, paleCountPerNumber,
+    maxFreq, maxWeighted, maxYears, maxWindow, maxPaleFreq, maxTermination,
+    ranked, pairs
+  };
+}
+
+// Calcula ranking, palés e insights para UNA sola lotería y devuelve el
+// bloque HTML ya armado, junto con la cantidad de sorteos encontrados.
+// Combina TODOS los años del histórico para el día/mes dado: comparar por
+// año exacto no aporta nada aquí, es una sola muestra por año; lo que
+// tiene valor estadístico es acumular ese día/mes a través de los años.
+function buildLotteryResultBlock(lottery, m, d, top) {
+  const lotteryFilter = (l) => l === lottery;
+
+  const rows = data.filter(r => {
+    const { m: month, d: day } = splitDate(r.date);
+    return month === m && day === d && lotteryFilter(r.lottery);
+  });
+
+  const years = [...new Set(rows.map(r => r.date.substring(0, 4)))];
+  const hour = getScheduleFor(lottery);
+
+  let html = `<section class="card lottery-result-block">
+    <div class="lottery-result-header">
+      <h3>🎰 ${escapeHtml(lottery)}${hour ? ` <span class="lottery-hour-tag">🕒 ${escapeHtml(hour)}</span>` : ""}</h3>
+      <span class="badge-count">${rows.length} sorteo${rows.length === 1 ? "" : "s"} · ${years.length} año${years.length === 1 ? "" : "s"}</span>
+    </div>`;
+
+  if (rows.length === 0) {
+    // BUG corregido: antes esta sección se cortaba acá con solo un mensaje
+    // vacío. Ahora, en vez de dejar al usuario sin nada, se muestra (1) un
+    // aviso si la lotería simplemente no sortea todos los días —para que 0
+    // resultados en la fecha exacta no se sienta como un error de carga— y
+    // (2) un resumen de la ventana ±3 días, que sí suele tener datos aunque
+    // la fecha exacta no los tenga.
+    html += buildNonDailyScheduleNotice(lottery);
+    html += `<div class="empty">No hay sorteos para esta lotería exactamente el ${pad(d)}/${pad(m)}, en ningún año del histórico cargado.</div>`;
+
+    const windowStats = computeWindowStats(m, d, lottery, 3);
+    const hasWindowData = Object.keys(windowStats.combinedFreq).length > 0;
+    if (hasWindowData) {
+      html += `<div class="lottery-result-sub">🗓️ Como la fecha exacta no tiene datos, se muestra en su lugar la ventana ±3 días alrededor del ${pad(d)}/${pad(m)}</div>`;
+      html += buildWindowSection(windowStats, {});
+    }
+
+    html += "</section>";
+    return { html, rowCount: 0, years: [] };
+  }
+
+  if (years.length <= 1) {
+    html += `<div class="hint">Ya se están comparando TODOS los años de tu histórico para este día/mes — es que solo tienes ${years.length} año cargado para esta lotería en esa fecha. Importa más historial (CSV) o actualiza los datos remotos para comparar más años.</div>`;
+  }
+
+  const rk = computeLotteryRanking(rows, lottery, m, d, data);
+  const { freq, pair, terminationFreq, windowStats, paleCountPerNumber, maxTermination, ranked, pairs } = rk;
 
   const allPossibleNumbers = Array.from({length: 100}, (_, i) => pad(i));
   const hotNumbers = new Set(ranked.map(x => x.n));
@@ -1546,6 +1644,166 @@ function renderIntelligentRecommendations(ranked, coldNumbers, month, day, lotte
   html += '</div>';
 
   return html;
+}
+
+// ============================================
+// V8 · SIMULADOR DE JUGADAS (BACKTESTING)
+// Dado una lotería y una fecha objetivo, genera el ranking y los palés
+// candidatos usando EXCLUSIVAMENTE sorteos anteriores a esa fecha (nunca la
+// fecha objetivo ni nada posterior) — igual que si se hubiera calculado el
+// día antes del sorteo real. Si el usuario ya cargó el resultado real de
+// esa fecha (vía CSV o datos remotos), lo compara automáticamente contra el
+// ranking generado. Reutiliza el mismo motor de puntaje que el análisis
+// normal (computeLotteryRanking), solo que alimentado con un dataset
+// recortado en el tiempo en vez de con todo `data`.
+// ============================================
+function runSimulation(lottery, targetDateStr, top) {
+  const { m, d } = splitDate(targetDateStr);
+
+  // Recorte estricto: SOLO sorteos con fecha anterior a la simulada, de
+  // cualquier lotería (computeWindowStats/computeLotteryRanking ya filtran
+  // por lotería puertas adentro). Comparación de strings 'YYYY-MM-DD'
+  // funciona cronológicamente, igual que en el resto de la app.
+  const cutoffRows = data.filter(r => r.date < targetDateStr);
+
+  const rowsForDayMonth = cutoffRows.filter(r => {
+    const { m: rm, d: rd } = splitDate(r.date);
+    return rm === m && rd === d && r.lottery === lottery;
+  });
+
+  const yearsUsed = [...new Set(rowsForDayMonth.map(r => r.date.substring(0, 4)))];
+  const ranking = computeLotteryRanking(rowsForDayMonth, lottery, m, d, cutoffRows);
+  const topRanked = ranking.ranked.slice(0, top);
+  const topPales = ranking.pairs.slice(0, 10);
+
+  // Resultado real de esa fecha (si el usuario ya lo cargó). Puede haber
+  // más de una fila si hubo una importación duplicada; se combinan todos
+  // los números vistos para esa lotería+fecha en un solo conjunto.
+  const actualRows = data.filter(r => r.lottery === lottery && r.date === targetDateStr);
+  let actualNumbers = null;
+  if (actualRows.length > 0) {
+    const set = new Set();
+    actualRows.forEach(r => r.numbers.forEach(n => set.add(n)));
+    actualNumbers = [...set];
+  }
+
+  let actualPairKeys = [];
+  if (actualNumbers) {
+    for (let i = 0; i < actualNumbers.length; i++) {
+      for (let j = i + 1; j < actualNumbers.length; j++) {
+        actualPairKeys.push([actualNumbers[i], actualNumbers[j]].sort().join("–"));
+      }
+    }
+  }
+
+  const numberHits = actualNumbers ? topRanked.filter(x => actualNumbers.includes(x.n)) : [];
+  const numberMisses = actualNumbers ? actualNumbers.filter(n => !topRanked.some(x => x.n === n)) : [];
+  const paleHits = actualNumbers ? topPales.filter(([key]) => actualPairKeys.includes(key)) : [];
+
+  return {
+    lottery, m, d, top, targetDateStr,
+    sampleSize: rowsForDayMonth.length,
+    yearsUsed,
+    topRanked, topPales,
+    actualNumbers, numberHits, numberMisses, paleHits
+  };
+}
+
+function buildSimulationResultHtml(sim) {
+  const hour = getScheduleFor(sim.lottery);
+  let html = `<section class="card lottery-result-block">
+    <div class="lottery-result-header">
+      <h3>🧪 ${escapeHtml(sim.lottery)}${hour ? ` <span class="lottery-hour-tag">🕒 ${escapeHtml(hour)}</span>` : ""}</h3>
+      <span class="badge-count">${sim.sampleSize} sorteo${sim.sampleSize === 1 ? "" : "s"} usado${sim.sampleSize === 1 ? "" : "s"} · ${sim.yearsUsed.length} año${sim.yearsUsed.length === 1 ? "" : "s"} previo${sim.yearsUsed.length === 1 ? "" : "s"}</span>
+    </div>
+    <div class="hint">Simulando el ${pad(sim.d)}/${pad(sim.m)}/${sim.targetDateStr.substring(0, 4)}: el ranking y los palés de abajo se calcularon usando ÚNICAMENTE sorteos anteriores al ${sim.targetDateStr} (jamás la fecha simulada ni nada posterior), exactamente como si se hubiera generado el día antes del sorteo real.</div>`;
+
+  if (sim.sampleSize === 0) {
+    html += `<div class="empty">No hay sorteos anteriores al ${sim.targetDateStr} para esta lotería en ese día/mes — no se puede generar un ranking de backtest sin al menos algún año previo cargado.</div></section>`;
+    return html;
+  }
+
+  const hitSet = new Set(sim.numberHits.map(x => x.n));
+  html += `<div class="lottery-result-sub">🔥 Ranking generado (top ${sim.top}, solo con datos previos)</div>
+    <table>
+      <tr><th>#</th><th>Número</th><th>Puntaje</th><th>${sim.actualNumbers ? "¿Salió?" : ""}</th></tr>
+      ${sim.topRanked.map((x, i) => `
+        <tr>
+          <td><strong>${i + 1}</strong></td>
+          <td><span class="num ${sim.actualNumbers && hitSet.has(x.n) ? "hot" : ""}">${x.n}</span></td>
+          <td><span class="stars">${generateStars(x.score, 100)}</span> <span class="small muted">${x.score.toFixed(1)}</span></td>
+          <td>${sim.actualNumbers ? (hitSet.has(x.n) ? '<span class="success">✓ acertado</span>' : '<span class="small muted">—</span>') : ""}</td>
+        </tr>
+      `).join("")}
+    </table>`;
+
+  html += `<div class="lottery-result-sub">🎯 Palés candidatos (top 10, solo con datos previos)</div>`;
+  if (sim.topPales.length === 0) {
+    html += '<div class="empty">No hay suficientes palés en el histórico previo a esta fecha.</div>';
+  } else {
+    const paleHitKeys = new Set(sim.paleHits.map(([key]) => key));
+    html += `
+      <table>
+        <tr><th>#</th><th>Palé</th><th>Apariciones previas</th><th>${sim.actualNumbers ? "¿Salió?" : ""}</th></tr>
+        ${sim.topPales.map(([key, count], i) => `
+          <tr>
+            <td><strong>${i + 1}</strong></td>
+            <td><span class="num ${sim.actualNumbers && paleHitKeys.has(key) ? "hot" : ""}">${key}</span></td>
+            <td><strong>${count}</strong></td>
+            <td>${sim.actualNumbers ? (paleHitKeys.has(key) ? '<span class="success">✓ acertado</span>' : '<span class="small muted">—</span>') : ""}</td>
+          </tr>
+        `).join("")}
+      </table>`;
+  }
+
+  if (!sim.actualNumbers) {
+    html += `<div class="warning">ℹ️ Todavía no tienes cargado el resultado real del ${sim.targetDateStr} para esta lotería, así que arriba solo se ve la predicción generada por el backtest. Importa ese resultado (CSV) o actualiza los datos remotos y vuelve a simular para ver la comparación número por número.</div>`;
+  } else {
+    const hitCount = sim.numberHits.length;
+    const paleHitCount = sim.paleHits.length;
+    html += `
+      <div class="lottery-result-sub">📋 Comparación contra el resultado real</div>
+      <div class="insights-grid">
+        <div class="insight-card"><strong>Resultado real</strong>${sim.actualNumbers.map(n => `<span class="num">${escapeHtml(n)}</span>`).join(" ")}</div>
+        <div class="insight-card"><strong>Números acertados en el top ${sim.top}</strong>${hitCount} de ${sim.actualNumbers.length}${sim.numberMisses.length ? ` · no estaban en el top: ${sim.numberMisses.map(n => escapeHtml(n)).join(", ")}` : ""}</div>
+        <div class="insight-card"><strong>Palés acertados en el top 10</strong>${paleHitCount} de ${sim.topPales.length ? "los candidatos" : "0 candidatos"}</div>
+      </div>
+      <div class="warning">⚠️ Un backtest puntual no demuestra que el método funcione ni prediga nada: es solo la comparación de UN sorteo. Para saber si esto aporta algo real hace falta correr la simulación sobre muchas fechas distintas y mirar el acierto promedio — ver la nota de "backtesting" en los comentarios del código como próximo paso pendiente.</div>
+    `;
+  }
+
+  html += "</section>";
+  return html;
+}
+
+function runSimulationFromUI() {
+  const lottery = document.getElementById("sim-lottery")?.value || "";
+  const targetDateStr = document.getElementById("sim-date")?.value || "";
+  const top = +(document.getElementById("sim-top")?.value || 10);
+  const resultsEl = document.getElementById("sim-results");
+  if (!resultsEl) return;
+
+  if (!lottery) {
+    resultsEl.innerHTML = '<div class="empty">Elige una lotería para simular.</div>';
+    return;
+  }
+  if (!validateDate(targetDateStr)) {
+    resultsEl.innerHTML = '<div class="empty">Elige una fecha válida para simular.</div>';
+    return;
+  }
+
+  const sim = runSimulation(lottery, targetDateStr, top);
+  resultsEl.innerHTML = buildSimulationResultHtml(sim);
+}
+
+function populateSimLotterySelect() {
+  const sel = document.getElementById("sim-lottery");
+  if (!sel) return;
+  const previous = sel.value;
+  sel.innerHTML = allLotteries.length
+    ? allLotteries.map(l => `<option value="${escapeHtml(l)}">${escapeHtml(l)}</option>`).join("")
+    : '<option value="">Sin loterías cargadas</option>';
+  if (allLotteries.includes(previous)) sel.value = previous;
 }
 
 // ============================================
