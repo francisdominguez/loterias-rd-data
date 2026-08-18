@@ -1,655 +1,96 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Estadísticas RD · Versión 4 Pro</title>
-<style>
-*{box-sizing:border-box}body{margin:0;background:#fff;color:#17202a;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
-header{background:linear-gradient(135deg,#0f766e 0%,#14b8a6 100%);color:#fff;padding:20px}header h1{margin:0 0 4px;font-size:24px}header p{margin:0;color:#cbd5e1}header .meta{font-size:12px;color:#94a3b8;margin-top:8px}
-main{max-width:1200px;margin:auto;padding:15px}.card{background:#fff;border-radius:14px;padding:16px;margin-bottom:15px;box-shadow:0 2px 10px #0001}
-.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}label{font-size:13px;font-weight:700;display:block;margin-bottom:5px;color:#475569}
-input,select,button{width:100%;padding:10px;border:1px solid #d1d5db;border-radius:9px;font:inherit}button{background:#0f766e;color:#fff;border:0;font-weight:700;cursor:pointer;transition:all .2s}button:hover{background:#0d6b63;transform:translateY(-1px);box-shadow:0 4px 12px #0002}button:active{transform:translateY(0)}
-.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.actions button{width:auto}.secondary{background:#e5e7eb;color:#111827}.secondary:hover{background:#d1d5db}.danger{background:#b91c1c}.danger:hover{background:#a16161}
-.loading{display:inline-flex;align-items:center;gap:6px;color:#64748b;font-size:13px}.spinner{width:14px;height:14px;border:2px solid #e5e7eb;border-top-color:#111827;border-radius:50%;animation:spin .6s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
-table{width:100%;border-collapse:collapse;margin-top:10px}th,td{padding:10px;border-bottom:1px solid #e5e7eb;text-align:left}th{background:#f8fafc;font-weight:700;color:#334155;font-size:13px}
-.num{display:inline-block;padding:5px 10px;border-radius:6px;background:#eef2ff;font-weight:800;font-size:13px;margin:2px;position:relative}
-.num.hot{background:linear-gradient(135deg,#fecaca,#fca5a5);color:#991b1b}
-.num.cold{background:linear-gradient(135deg,#cffafe,#a5f3fc);color:#164e63}
-.num.recommended{background:linear-gradient(135deg,#e9d5ff,#d8b4fe);color:#581c87}
-.hot::before{content:'🔥';margin-right:4px}
-.cold::before{content:'❄️';margin-right:4px}
-.recommended::before{content:'✨';margin-right:4px}
-.stars{letter-spacing:2px;font-size:18px;color:#fbbf24}
-.stat{font-size:28px;font-weight:800;color:#0f172a}.stat-label{font-size:13px;color:#64748b;margin-top:3px}
-.muted{font-size:13px;color:#64748b}.warning{padding:12px;background:#fff7ed;border-left:4px solid #f97316;border-radius:7px;margin-top:12px;font-size:13px}
-.empty{padding:18px;text-align:center;color:#64748b}.good{background:#ecfdf5;border-left:4px solid #10b981;padding:10px;border-radius:7px;color:#065f46}
-.small{font-size:12px}.success{color:#059669;font-weight:600}.error{color:#dc2626;font-weight:600}
-.progress-bar-container{display:flex;align-items:center;gap:8px;width:100%}.progress-bar{flex:1;height:20px;background:#f1f5f9;border-radius:4px;overflow:hidden;position:relative}.progress-fill{height:100%;background:linear-gradient(90deg,#3b82f6,#60a5fa);border-radius:4px;display:flex;align-items:center;justify-content:center;font-size:11px;color:#fff;font-weight:700;transition:width .3s ease}
-.frequency-count{min-width:35px;text-align:right;font-weight:700}
-.data-status{display:flex;align-items:center;gap:6px;padding:10px;background:#f0f9ff;border-radius:7px;border-left:4px solid #0284c7;font-size:12px;margin-bottom:10px}.data-status.remote{border-left-color:#10b981}.data-status.local{border-left-color:#f59e0b}.data-status.seed{border-left-color:#8b5cf6}
-.lottery-selector{max-height:250px;overflow-y:auto;border:1px solid #e5e7eb;border-radius:6px;background:#fff}
-.lottery-option{padding:8px 12px;cursor:pointer;border-bottom:1px solid #f1f5f9;transition:all .15s;background:#fff;color:#333}
-.lottery-option:hover{background:#f0fdf4;color:#15803d}
-.lottery-option.selected{background:#dcfce7;color:#15803d;font-weight:700;border-left:4px solid #22c55e}
-.section-title{font-size:12px;font-weight:700;color:#94a3b8;padding:6px 12px;background:#f8fafc;border-bottom:1px solid #e5e7eb;margin:0}
-.insights-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:12px}
-.insight-card{background:linear-gradient(135deg,#f8fafc,#f1f5f9);border:1px solid #e5e7eb;border-radius:8px;padding:12px;font-size:12px}
-.insight-card strong{display:block;color:#0f172a;margin-bottom:4px}
-.history-section{display:none}
-.history-section.visible{display:block}
-.settings-section{display:none}
-.settings-section.visible{display:block}
-.settings-btn{position:fixed;top:20px;right:20px;width:50px;height:50px;border-radius:50%;background:#0f766e;color:#fff;border:none;font-size:24px;cursor:pointer;box-shadow:0 2px 8px #0003;z-index:999}
-</style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🎯 Recomendaciones Inteligentes · Loterías RD</title>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
-<header>
-  <h1>📊 Estadísticas Loterías RD — V4 Pro</h1>
-  <p>Análisis histórico completo • Frecuencia • Números calientes & fríos</p>
-  <div class="meta" id="data-source">Inicializando...</div>
-  <button class="settings-btn" onclick="toggleSettings()" title="Configuración">⚙️</button>
-</header>
+  <div class="container">
+    <header>
+      <h1>🎯 Recomendaciones Inteligentes</h1>
+      <p class="subtitle">Análisis estadístico real · Sin números aleatorios</p>
+      <div class="badge" id="data-info">📊 Cargando datos...</div>
+    </header>
 
-<main>
-<section class="card">
-  <h2>🎯 Análisis Avanzado</h2>
-  <div id="data-init-status"></div>
-  <div class="grid">
-    <div><label>Año</label><input id="year" type="number" min="2023" max="2099" value="2025"></div>
-    <div><label>Mes</label><input id="month" type="number" min="1" max="12" value="8"></div>
-    <div><label>Día</label><input id="day" type="number" min="1" max="31" value="18"></div>
-    <div><label>Top</label><select id="top"><option value="10">10</option><option value="5">5</option><option value="15">15</option><option value="20">20</option></select></div>
-  </div>
-  
-  <div style="margin-top:12px">
-    <label style="margin-bottom:8px">Lotería</label>
-    <div class="lottery-selector" id="lottery-selector"></div>
-  </div>
-  
-  <div class="actions"><button onclick="analyze()">🔍 Analizar</button><button class="secondary" onclick="toggleAllLotteries()">Seleccionar todas</button></div>
-  <div id="summary" class="grid" style="margin-top:14px"></div>
-</section>
-
-<section class="card">
-  <h2>🔥 Ranking Estadístico</h2>
-  <div id="ranking"></div>
-</section>
-
-<section class="card">
-  <h2>💡 Recomendaciones Inteligentes</h2>
-  <div id="insights"></div>
-</section>
-
-<section class="card">
-  <h2>🎯 Palés Frecuentes</h2>
-  <div id="pairs"></div>
-</section>
-
-<section class="card settings-section">
-  <h2>⚙️ Configuración</h2>
-  <div class="data-status" id="data-source-badge" style="display:none"></div>
-  <p class="muted">CSV: <b>fecha,loteria,n1,n2,n3</b>. Ejemplo: 2025-08-18,Leidsa,12,34,56</p>
-  <input id="file" type="file" accept=".csv,text/csv">
-  <div class="actions">
-    <button onclick="importCSV()">Importar CSV</button>
-    <button class="secondary" onclick="downloadCSV()">Exportar histórico</button>
-    <button class="secondary" onclick="refreshRemoteData()">Actualizar datos remotos</button>
-    <button class="secondary" onclick="toggleHistory()">Ver tabla de datos</button>
-    <button class="danger" onclick="resetData()">Restaurar datos iniciales</button>
-  </div>
-  <p id="status" class="muted" style="margin-top:8px"></p>
-</section>
-
-<section class="card history-section">
-  <h2>📚 Datos Cargados (<span id="total-records">0</span> registros)</h2>
-  <div id="history"></div>
-  <div class="good small" style="margin-top:12px">✓ Base con 3+ años de histórico. Datos remoto se sincroniza automáticamente.</div>
-  <div class="warning small">⚠️ El ranking describe frecuencias históricas. No predice sorteos ni cambia probabilidades matemáticas.</div>
-</section>
-</main>
-
-<script>
-// ============================================
-// DATOS INICIALES
-// ============================================
-const INITIAL = [
-  {"date": "2025-08-18", "lottery": "Nacional Gana Más", "numbers": ["34", "71", "66"]},
-  {"date": "2025-08-18", "lottery": "Nacional Noche", "numbers": ["00", "92", "73"]},
-  {"date": "2025-08-18", "lottery": "Quiniela Palé", "numbers": ["35", "55", "07"]},
-  {"date": "2025-08-18", "lottery": "Pega 3 Más", "numbers": ["33", "35", "39"]},
-  {"date": "2025-08-18", "lottery": "Quiniela Real", "numbers": ["97", "29", "24"]},
-  {"date": "2025-08-18", "lottery": "Quiniela Loteka", "numbers": ["90", "94", "06"]},
-  {"date": "2025-08-18", "lottery": "Mega Chance", "numbers": ["78", "59", "98", "73", "93"]},
-  {"date": "2024-08-18", "lottery": "Nacional Gana Más", "numbers": ["97", "39", "62"]},
-  {"date": "2024-08-18", "lottery": "Nacional Noche", "numbers": ["05", "62", "81"]},
-  {"date": "2024-08-18", "lottery": "Quiniela Palé", "numbers": ["86", "80", "55"]},
-  {"date": "2024-08-18", "lottery": "La Primera", "numbers": ["34", "99", "43"]},
-  {"date": "2024-08-18", "lottery": "La Primera Noche", "numbers": ["54", "39", "51"]},
-  {"date": "2024-08-18", "lottery": "La Suerte", "numbers": ["42", "98", "14"]},
-  {"date": "2024-08-18", "lottery": "La Suerte 6PM", "numbers": ["35", "09", "63"]},
-  {"date": "2024-08-18", "lottery": "Lotedom", "numbers": ["90", "03", "81"]},
-  {"date": "2024-08-18", "lottery": "New York Tarde", "numbers": ["32", "80", "35"]},
-  {"date": "2023-08-18", "lottery": "Nacional Gana Más", "numbers": ["34", "71", "66"]},
-  {"date": "2023-08-18", "lottery": "Nacional Noche", "numbers": ["56", "89", "12"]},
-  {"date": "2023-08-18", "lottery": "La Primera", "numbers": ["67", "34", "90"]}
-];
-
-const KEY = "loteria_rd_v4";
-const REMOTE_JSON_URL = "https://raw.githubusercontent.com/francisdominguez/loterias-rd-data/main/data.json";
-const REMOTE_DATA_KEY = "loteria_rd_remote_timestamp";
-const SELECTED_LOTTERIES_KEY = "loteria_rd_selected";
-
-let data = [];
-let dataSource = "seed";
-let allLotteries = [];
-let selectedLotteries = new Set();
-
-// ============================================
-// INICIALIZACIÓN
-// ============================================
-async function initializeData() {
-  const statusEl = document.getElementById("data-init-status");
-  statusEl.innerHTML = '<div class="loading"><div class="spinner"></div><span>Cargando datos...</span></div>';
-
-  const localData = localStorage.getItem(KEY);
-  const remoteTimestamp = localStorage.getItem(REMOTE_DATA_KEY);
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
-    const response = await fetch(REMOTE_JSON_URL, { signal: controller.signal });
-    clearTimeout(timeoutId);
-
-    if (response.ok) {
-      const remoteData = await response.json();
-      if (Array.isArray(remoteData) && remoteData.length > 0) {
-        data = remoteData;
-        dataSource = "remote";
-        localStorage.setItem(KEY, JSON.stringify(data));
-        localStorage.setItem(REMOTE_DATA_KEY, new Date().toISOString());
-        statusEl.innerHTML = '<div class="good" style="font-size:13px">✓ Datos descargados desde servidor remoto</div>';
-      } else {
-        throw new Error("JSON remoto vacío");
-      }
-    } else {
-      throw new Error(`HTTP ${response.status}`);
-    }
-  } catch (err) {
-    if (localData) {
-      try {
-        data = JSON.parse(localData);
-        dataSource = "local";
-        statusEl.innerHTML = '<div class="warning" style="font-size:13px">⚠️ Usando datos guardados localmente</div>';
-      } catch {
-        data = INITIAL.map(x => ({...x}));
-        dataSource = "seed";
-        statusEl.innerHTML = '<div class="warning" style="font-size:13px">⚠️ Usando datos iniciales</div>';
-      }
-    } else {
-      data = INITIAL.map(x => ({...x}));
-      dataSource = "seed";
-      statusEl.innerHTML = '<div class="warning" style="font-size:13px">⚠️ Usando datos iniciales</div>';
-    }
-  }
-
-  buildLotteryList();
-  updateDataSourceBadge();
-  renderHistory();
-  analyze();
-}
-
-function buildLotteryList() {
-  // Obtener loterías únicas en orden de aparición
-  const seen = new Set();
-  allLotteries = [];
-  data.forEach(r => {
-    if (!seen.has(r.lottery)) {
-      allLotteries.push(r.lottery);
-      seen.add(r.lottery);
-    }
-  });
-
-  // Cargar selecciones previas
-  const saved = localStorage.getItem(SELECTED_LOTTERIES_KEY);
-  if (saved) {
-    selectedLotteries = new Set(JSON.parse(saved));
-  } else {
-    selectedLotteries = new Set(allLotteries);
-  }
-
-  renderLotterySelector();
-}
-
-function renderLotterySelector() {
-  const selector = document.getElementById("lottery-selector");
-  selector.innerHTML = allLotteries
-    .map(lottery => `
-      <div class="lottery-option ${selectedLotteries.has(lottery) ? "selected" : ""}" 
-           onclick="toggleLottery('${lottery.replace(/'/g, "\\'")}')">
-        ${lottery}
+    <!-- Panel de control -->
+    <section class="card controls">
+      <div class="controls-grid">
+        <div class="control-group">
+          <label>📅 Fecha</label>
+          <div class="date-inputs">
+            <input type="number" id="year" value="2025" min="2020" max="2099">
+            <span class="sep">-</span>
+            <input type="number" id="month" value="8" min="1" max="12">
+            <span class="sep">-</span>
+            <input type="number" id="day" value="18" min="1" max="31">
+          </div>
+        </div>
+        <div class="control-group">
+          <label>🎲 Top</label>
+          <select id="topN">
+            <option value="3" selected>3</option>
+            <option value="5">5</option>
+            <option value="10">10</option>
+            <option value="20">20</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label>&nbsp;</label>
+          <button onclick="calcularRecomendaciones()">⟳ Actualizar</button>
+        </div>
       </div>
-    `)
-    .join("");
-}
+      <div class="stats-row" id="stats-resumen">
+        <span class="stat-item">📌 Sorteos analizados: <strong id="total-sort">0</strong></span>
+        <span class="stat-item">🔢 Números distintos: <strong id="total-nums">0</strong></span>
+        <span class="stat-item">📈 Media esperada: <strong id="media-esperada">0</strong></span>
+      </div>
+    </section>
 
-function toggleLottery(lottery) {
-  if (selectedLotteries.has(lottery)) {
-    selectedLotteries.delete(lottery);
-  } else {
-    selectedLotteries.add(lottery);
-  }
-  localStorage.setItem(SELECTED_LOTTERIES_KEY, JSON.stringify([...selectedLotteries]));
-  renderLotterySelector();
-  analyze();
-}
+    <!-- TOP 3 Recomendaciones -->
+    <section class="card recomendaciones">
+      <h2>💡 Recomendaciones Inteligentes <span class="tag">Top 3</span></h2>
+      <div id="top3-cards">
+        <!-- Inyectado por JS -->
+      </div>
+      <div id="detalle-top3">
+        <!-- Inyectado por JS -->
+      </div>
+    </section>
 
-function toggleAllLotteries() {
-  if (selectedLotteries.size === allLotteries.length) {
-    selectedLotteries.clear();
-  } else {
-    selectedLotteries = new Set(allLotteries);
-  }
-  localStorage.setItem(SELECTED_LOTTERIES_KEY, JSON.stringify([...selectedLotteries]));
-  renderLotterySelector();
-  analyze();
-}
-
-function updateDataSourceBadge() {
-  const badge = document.getElementById("data-source-badge");
-  let badgeClass, badgeText, badgeMeta;
-
-  switch (dataSource) {
-    case "remote":
-      badgeClass = "remote";
-      badgeText = "📡 Datos remoto";
-      badgeMeta = `Sincronizado: ${new Date(localStorage.getItem(REMOTE_DATA_KEY) || Date.now()).toLocaleString('es-DO')}`;
-      break;
-    case "local":
-      badgeClass = "local";
-      badgeText = "💾 Datos locales";
-      badgeMeta = "Guardados en navegador";
-      break;
-    case "seed":
-      badgeClass = "seed";
-      badgeText = "🌱 Datos iniciales";
-      badgeMeta = "Ejemplo incluido";
-      break;
-  }
-
-  badge.className = `data-status ${badgeClass}`;
-  badge.innerHTML = `<div>${badgeText}<br><span style="font-size:11px;opacity:.8">${badgeMeta}</span></div>`;
-  badge.style.display = "flex";
-
-  const headerMeta = document.querySelector("header .meta");
-  headerMeta.textContent = badgeText + " • Registros: " + data.length + " • Loterías: " + allLotteries.length;
-}
-
-async function refreshRemoteData() {
-  const btn = event.target;
-  const original = btn.textContent;
-  btn.disabled = true;
-  btn.textContent = "Actualizando...";
-
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    
-    const response = await fetch(REMOTE_JSON_URL, { 
-      signal: controller.signal,
-      cache: "no-store"
-    });
-    clearTimeout(timeoutId);
-
-    if (response.ok) {
-      const remoteData = await response.json();
-      if (Array.isArray(remoteData) && remoteData.length > 0) {
-        data = remoteData;
-        dataSource = "remote";
-        localStorage.setItem(KEY, JSON.stringify(data));
-        localStorage.setItem(REMOTE_DATA_KEY, new Date().toISOString());
-        buildLotteryList();
-        updateDataSourceBadge();
-        renderHistory();
-        analyze();
-        setStatus("✓ Datos actualizados desde servidor", true);
-      } else {
-        setStatus("✗ Datos remoto inválido", false);
-      }
-    } else {
-      setStatus("✗ Error al descargar (HTTP " + response.status + ")", false);
-    }
-  } catch (err) {
-    setStatus("✗ No se pudo conectar al servidor", false);
-  } finally {
-    btn.disabled = false;
-    btn.textContent = original;
-  }
-}
-
-// ============================================
-// ANÁLISIS Y CÁLCULOS
-// ============================================
-function analyze() {
-  const y = +document.getElementById("year").value;
-  const m = +document.getElementById("month").value;
-  const d = +document.getElementById("day").value;
-  const top = +document.getElementById("top").value;
-
-  const rows = data.filter(r => {
-    const [year, month, day] = r.date.split("-").map(Number);
-    return year === y && month === m && day === d && selectedLotteries.has(r.lottery);
-  });
-
-  const freq = {}, pair = {}, yearFreq = {};
-
-  rows.forEach(r => {
-    const ns = [...new Set(r.numbers)];
-    ns.forEach(n => {
-      freq[n] = (freq[n] || 0) + 1;
-      const yr = r.date.substring(0, 4);
-      yearFreq[n] ??= {};
-      yearFreq[n][yr] = (yearFreq[n][yr] || 0) + 1;
-    });
-
-    for (let i = 0; i < ns.length; i++) {
-      for (let j = i + 1; j < ns.length; j++) {
-        const p = [ns[i], ns[j]].sort().join("–");
-        pair[p] = (pair[p] || 0) + 1;
-      }
-    }
-  });
-
-  const maxFreq = Math.max(...Object.values(freq), 1);
-  const ranked = Object.entries(freq)
-    .map(([n, c]) => {
-      const years = Object.keys(yearFreq[n] || {}).length;
-      const score = c * 2 + years;
-      return [n, c, years, score];
-    })
-    .sort((a, b) => b[3] - a[3] || b[1] - a[1] || a[0].localeCompare(b[0]));
-
-  const pairs = Object.entries(pair)
-    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-
-  // Calcular números fríos (nunca salieron)
-  const allPossibleNumbers = Array.from({length: 100}, (_, i) => pad(i));
-  const hotNumbers = new Set(ranked.map(x => x[0]));
-  const coldNumbers = allPossibleNumbers.filter(n => !hotNumbers.has(n));
-
-  // Resumen
-  document.getElementById("summary").innerHTML = `
-    <div><div class="stat">${rows.length}</div><div class="stat-label">Sorteos</div></div>
-    <div><div class="stat">${ranked.length}</div><div class="stat-label">Números distintos</div></div>
-    <div><div class="stat">${ranked[0]?.[0] || "—"}</div><div class="stat-label">Top estadístico</div></div>
-    <div><div class="stat">${pairs[0]?.[0] || "—"}</div><div class="stat-label">Palé líder</div></div>
-  `;
-
-  // Ranking con estrellas
-  if (ranked.length) {
-    document.getElementById("ranking").innerHTML = `
-      <table>
-        <tr><th>#</th><th>Número</th><th>Frecuencia</th><th>Años</th><th>Puntaje</th></tr>
-        ${ranked.slice(0, top).map((x, i) => {
-          const stars = generateStars(x[3], 5);
-          const ranking_class = i < 3 ? "hot" : i < 8 ? "recommended" : "";
-          return `
+    <!-- Ranking Combinado -->
+    <section class="card ranking">
+      <h2>📊 Ranking Combinado <span class="tag">Score</span></h2>
+      <div class="table-wrapper">
+        <table>
+          <thead>
             <tr>
-              <td><strong>${i + 1}</strong></td>
-              <td><span class="num ${ranking_class}">${x[0]}</span></td>
-              <td>
-                <div class="progress-bar-container">
-                  <div class="progress-bar">
-                    <div class="progress-fill" style="width: ${(x[1] / maxFreq) * 100}%">
-                      ${x[1]}
-                    </div>
-                  </div>
-                  <div class="frequency-count">${x[1]}</div>
-                </div>
-              </td>
-              <td><strong>${x[2]}</strong></td>
-              <td><span class="stars">${stars}</span></td>
+              <th>#</th>
+              <th>Número</th>
+              <th>Frec. (Fj)</th>
+              <th>Atraso (Ai)</th>
+              <th>Desviación</th>
+              <th>Score</th>
+              <th>Prob. %</th>
             </tr>
-          `;
-        }).join("")}
-      </table>
-    `;
-  } else {
-    document.getElementById("ranking").innerHTML = '<div class="empty">No hay datos para esa fecha/loterías seleccionadas.</div>';
-  }
+          </thead>
+          <tbody id="ranking-body">
+            <!-- Inyectado por JS -->
+          </tbody>
+        </table>
+      </div>
+      <div class="hint">
+        ⚡ Score = (Frecuencia × 0.6) + (Atraso × 0.4) · Desviación Poisson > 1.96 = 🔥 Caliente, &lt; -1.96 = ❄️ Frío
+      </div>
+    </section>
 
-  // Insights
-  renderInsights(ranked, coldNumbers.slice(0, 5));
+    <!-- Footer -->
+    <footer class="footer">
+      Datos históricos reales · Sin números aleatorios · Aproximación Poisson para desviación media
+    </footer>
+  </div>
 
-  // Palés
-  if (pairs.length) {
-    document.getElementById("pairs").innerHTML = `
-      <table>
-        <tr><th>#</th><th>Palé</th><th>Apariciones</th></tr>
-        ${pairs.slice(0, top).map((x, i) => `
-          <tr>
-            <td><strong>${i + 1}</strong></td>
-            <td><span class="num">${x[0]}</span></td>
-            <td><strong>${x[1]}</strong></td>
-          </tr>
-        `).join("")}
-      </table>
-    `;
-  } else {
-    document.getElementById("pairs").innerHTML = '<div class="empty">No hay palés suficientes.</div>';
-  }
-}
-
-function generateStars(score, maxScore) {
-  const starCount = Math.min(5, Math.ceil((score / maxScore) * 5));
-  return "⭐".repeat(starCount) + "☆".repeat(5 - starCount);
-}
-
-function renderInsights(ranked, coldNumbers) {
-  if (ranked.length === 0) {
-    document.getElementById("insights").innerHTML = '<div class="empty">Sin datos para mostrar insights.</div>';
-    return;
-  }
-
-  const topHot = ranked.slice(0, 3);
-  const coldNums = coldNumbers.join(", ");
-
-  let html = '<div class="insights-grid">';
-
-  html += '<div class="insight-card">';
-  html += '<strong>🔥 Top 3 Calientes</strong>';
-  topHot.forEach(n => {
-    html += `<div style="color:#991b1b">🔥 ${n[0]} (${n[1]} veces)</div>`;
-  });
-  html += '</div>';
-
-  html += '<div class="insight-card">';
-  html += '<strong>❄️ Números Fríos</strong>';
-  html += `<div style="color:#164e63">Nunca han salido en esta fecha: ${coldNums}</div>`;
-  html += '</div>';
-
-  html += '<div class="insight-card">';
-  html += '<strong>✨ Recomendación</strong>';
-  if (ranked.length > 0) {
-    const rec = ranked[0];
-    html += `<div style="color:#581c87">Considera el ${rec[0]} (${rec[1]} apariciones, ${rec[2]} años)</div>`;
-  }
-  html += '</div>';
-
-  html += '<div class="insight-card">';
-  html += '<strong>📊 Dispersión</strong>';
-  const unique = Math.round((ranked.length / 100) * 100);
-  html += `<div>${unique}% de números han salido en esta fecha</div>`;
-  html += '</div>';
-
-  html += '</div>';
-  document.getElementById("insights").innerHTML = html;
-}
-
-// ============================================
-// UTILIDADES
-// ============================================
-function pad(n) {
-  return String(n).padStart(2, "0");
-}
-
-function validateDate(dateStr) {
-  return /^\d{4}-\d{2}-\d{2}$/.test(dateStr);
-}
-
-function importCSV() {
-  const file = document.getElementById("file").files[0];
-  if (!file) {
-    setStatus("Selecciona un CSV.", false);
-    return;
-  }
-
-  const reader = new FileReader();
-  reader.onload = e => {
-    const lines = e.target.result
-      .split(/\r?\n/)
-      .map(x => x.trim())
-      .filter(Boolean);
-
-    let added = 0, skipped = 0;
-    const errors = [];
-
-    lines.forEach((line, i) => {
-      if (i === 0 && line.toLowerCase().includes("fecha")) return;
-
-      const parts = line.split(",").map(x => x.trim());
-
-      if (parts.length < 4) {
-        skipped++;
-        errors.push(`Fila ${i + 1}: formato incorrecto`);
-        return;
-      }
-
-      const [dateStr, lottery, ...numStrs] = parts;
-
-      if (!validateDate(dateStr)) {
-        skipped++;
-        errors.push(`Fila ${i + 1}: fecha inválida (YYYY-MM-DD)`);
-        return;
-      }
-
-      const numbers = numStrs
-        .filter(n => n.length > 0)
-        .map(n => {
-          const cleaned = n.replace(/\D/g, "");
-          if (cleaned.length === 0 || cleaned.length > 2) {
-            throw new Error(`número inválido: ${n}`);
-          }
-          return pad(parseInt(cleaned, 10));
-        });
-
-      if (numbers.length === 0) {
-        skipped++;
-        errors.push(`Fila ${i + 1}: sin números válidos`);
-        return;
-      }
-
-      if (!lottery.trim()) {
-        skipped++;
-        errors.push(`Fila ${i + 1}: nombre de lotería vacío`);
-        return;
-      }
-
-      data.push({
-        date: dateStr,
-        lottery: lottery.trim(),
-        numbers: numbers
-      });
-
-      added++;
-    });
-
-    if (added > 0) {
-      save();
-      buildLotteryList();
-      const msg = `✓ Importados ${added} registros.${skipped > 0 ? ` (${skipped} saltados)` : ""}`;
-      setStatus(msg, true);
-    } else {
-      setStatus(`✗ No se importaron registros. ${skipped} filas con errores.`, false);
-    }
-
-    document.getElementById("file").value = "";
-  };
-
-  reader.readAsText(file);
-}
-
-function save() {
-  localStorage.setItem(KEY, JSON.stringify(data));
-  renderHistory();
-  analyze();
-}
-
-function downloadCSV() {
-  const csv =
-    "fecha,loteria,n1,n2,n3\n" +
-    data
-      .map(r => [r.date, r.lottery, ...r.numbers].join(","))
-      .join("\n");
-
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "historico_loterias_rd.csv";
-  link.click();
-}
-
-function resetData() {
-  if (confirm("¿Restaurar la base de datos a datos iniciales?")) {
-    data = INITIAL.map(x => ({...x}));
-    dataSource = "seed";
-    localStorage.removeItem(KEY);
-    localStorage.removeItem(REMOTE_DATA_KEY);
-    localStorage.removeItem(SELECTED_LOTTERIES_KEY);
-    buildLotteryList();
-    updateDataSourceBadge();
-    save();
-    setStatus("✓ Base de datos restaurada.", true);
-  }
-}
-
-function setStatus(message, isSuccess = false) {
-  const el = document.getElementById("status");
-  el.textContent = message;
-  el.className = isSuccess ? "success" : "error";
-}
-
-function renderHistory() {
-  const rows = [...data].sort((a, b) => b.date.localeCompare(a.date));
-  document.getElementById("total-records").textContent = data.length;
-  document.getElementById("history").innerHTML = 
-    rows.length > 0
-      ? `<table><tr><th>Fecha</th><th>Lotería</th><th>Resultado</th></tr>${rows
-          .map(
-            r =>
-              `<tr><td>${r.date}</td><td>${r.lottery}</td><td>${r.numbers
-                .map(n => `<span class="num">${n}</span>`)
-                .join("")}</td></tr>`
-          )
-          .join("")}</table>`
-      : '<div class="empty">Sin registros.</div>';
-}
-
-function toggleHistory() {
-  const section = document.querySelector(".history-section");
-  section.classList.toggle("visible");
-}
-
-function toggleSettings() {
-  const section = document.querySelector(".settings-section");
-  section.classList.toggle("visible");
-}
-
-// ============================================
-// BOOTSTRAP
-// ============================================
-document.addEventListener("DOMContentLoaded", initializeData);
-</script>
+  <script src="app.js"></script>
 </body>
 </html>
