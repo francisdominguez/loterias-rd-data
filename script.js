@@ -1151,7 +1151,7 @@ function buildLotteryResultBlock(lottery, m, d, top) {
   }
 
   const rk = computeLotteryRanking(rows, lottery, m, d, data);
-  const { freq, pair, terminationFreq, windowStats, paleCountPerNumber, maxTermination, ranked, pairs } = rk;
+  const { freq, pair, terminationFreq, windowStats, paleCountPerNumber, maxFreq, maxTermination, ranked, pairs } = rk;
 
   const allPossibleNumbers = Array.from({length: 100}, (_, i) => pad(i));
   const hotNumbers = new Set(ranked.map(x => x.n));
@@ -1197,38 +1197,13 @@ function buildLotteryResultBlock(lottery, m, d, top) {
     </table>
   `;
 
-  html += '<div class="lottery-result-sub">🔄 Números repetidores</div>';
-  html += buildRepeatersSection(topRanked.slice(0, 10), computeGapStats(lottery));
+  // ---- Resumen dinámico: lo más accionable, en una frase, antes de bajar a detalle ----
+  const top3 = topRanked.slice(0, 3).map(x => x.n);
+  if (top3.length) {
+    html += `<div class="good small">📌 En resumen para <b>${escapeHtml(lottery)}</b>: los números con mejor puntaje son ${top3.map(n => `<b>${n}</b>`).join(", ")}. Abre los paneles de abajo para ver el detalle completo (repetidores, espejos, decenas, rachas, comparaciones y más).</div>`;
+  }
 
-  html += '<div class="lottery-result-sub">↔️ Espejos que se siguen</div>';
-  html += buildMirrorFollowSection(topRanked.slice(0, 8), computeMirrorFollowStats(lottery));
-
-  html += '<div class="lottery-result-sub">🔢 Decenas</div>';
-  html += buildDecadeSection(freq);
-
-  html += '<div class="lottery-result-sub">📅 Comportamiento alrededor de la fecha</div>';
-  html += buildWindowSection(windowStats, freq);
-
-  html += buildDragSection(computeDragStats(m, d, lottery));
-
-  html += '<div class="lottery-result-sub">📊 Matriz de números 00–99</div>';
-  html += buildNumberMatrix(ranked);
-
-  html += '<div class="lottery-result-sub">🔁 Repetición entre años</div>';
-  html += buildRepetitionSection(topRanked.slice(0, 10), years.length);
-
-  html += '<div class="lottery-result-sub">📉 Rachas por número</div>';
-  html += buildStreakSection(topRanked.slice(0, 10), years);
-
-  html += '<div class="lottery-result-sub">#️⃣ Terminaciones</div>';
-  html += buildTerminationSection(terminationFreq, rows.length);
-
-  html += '<div class="lottery-result-sub">🪞 Números espejo</div>';
-  html += buildMirrorSection(topRanked.slice(0, 8), freq);
-
-  html += '<div class="lottery-result-sub">💡 Recomendaciones inteligentes</div>';
-  html += renderIntelligentRecommendations(ranked, coldNumbers.slice(0, 5), m, d, lotteryFilter);
-
+  // ---- Palés frecuentes (visible por defecto) ----
   html += '<div class="lottery-result-sub">🎯 Palés frecuentes</div>';
   if (pairs.length) {
     html += `
@@ -1252,13 +1227,29 @@ function buildLotteryResultBlock(lottery, m, d, top) {
     html += '<div class="empty">No hay palés suficientes.</div>';
   }
 
-  html += '<div class="lottery-result-sub">🎯 Palés destacados estadísticamente (candidatos)</div>';
-  html += buildPaleCandidatesSection(topRanked.slice(0, 8), pair);
+  // ---- Recomendaciones inteligentes (visible por defecto) ----
+  html += '<div class="lottery-result-sub">💡 Recomendaciones inteligentes</div>';
+  html += renderIntelligentRecommendations(ranked, coldNumbers.slice(0, 5), m, d, lotteryFilter);
 
-  html += '<div class="lottery-result-sub">📅 Comparación con el día anterior</div>';
-  html += buildDateComparisonSection(m, d, lottery, ranked, pairs);
-
+  // ---- Panel de confianza (visible por defecto) ----
   html += buildConfidencePanel(rows.length, years.length);
+
+  // ---- Paneles secundarios: agrupados en acordeones colapsables ----
+  html += '<div class="lottery-result-sub">📂 Más análisis y patrones</div>';
+  html += '<div class="hint" style="margin-bottom:8px">Todo lo de arriba ya resume lo más accionable. Estos paneles amplían el detalle estadístico número por número — ábrelos solo si quieres profundizar.</div>';
+
+  html += wrapAcc("🎯 Palés destacados estadísticamente (candidatos)", buildPaleCandidatesSection(topRanked.slice(0, 8), pair));
+  html += wrapAcc("📅 Comparación con el día anterior", buildDateComparisonSection(m, d, lottery, ranked, pairs));
+  html += wrapAcc("🔄 Números repetidores", buildRepeatersSection(topRanked.slice(0, 10), computeGapStats(lottery)));
+  html += wrapAcc("↔️ Espejos que se siguen", buildMirrorFollowSection(topRanked.slice(0, 8), computeMirrorFollowStats(lottery)));
+  html += wrapAcc("🪞 Números espejo", buildMirrorSection(topRanked.slice(0, 8), freq));
+  html += wrapAcc("🔢 Decenas", buildDecadeSection(freq));
+  html += wrapAcc("#️⃣ Terminaciones", buildTerminationSection(terminationFreq, rows.length));
+  html += wrapAcc("📅 Comportamiento alrededor de la fecha", buildWindowSection(windowStats, freq));
+  html += wrapAcc("🔥 Arrastre (día anterior → fecha analizada)", buildDragSection(computeDragStats(m, d, lottery)));
+  html += wrapAcc("🔁 Repetición entre años", buildRepetitionSection(topRanked.slice(0, 10), years.length));
+  html += wrapAcc("📉 Rachas por número", buildStreakSection(topRanked.slice(0, 10), years));
+  html += wrapAcc("📊 Matriz de números 00–99", buildNumberMatrix(ranked));
 
   html += '</section>';
   return { html, rowCount: rows.length, years };
@@ -1923,6 +1914,24 @@ function runRecentTrendFromUI() {
 // ============================================
 // UTILIDADES
 // ============================================
+// ============================================
+// ACORDEONES (paneles secundarios)
+// Los ~4 paneles más accionables (ranking, recomendaciones, palés
+// frecuentes, confianza) se muestran siempre abiertos. El resto de
+// paneles analíticos (repetidores, espejos, decenas, matriz, rachas,
+// terminaciones, comparaciones, etc.) se agrupan en <details> colapsables
+// para que el bloque de resultados no se sienta abrumador de entrada,
+// sin perder ningún dato: todo sigue a un clic de distancia.
+// ============================================
+function wrapAcc(title, innerHtml, open = false) {
+  return `
+    <details class="acc"${open ? " open" : ""}>
+      <summary class="acc-summary">${title}</summary>
+      <div class="acc-body">${innerHtml}</div>
+    </details>
+  `;
+}
+
 function pad(n) {
   return String(n).padStart(2, "0");
 }

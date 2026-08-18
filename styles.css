@@ -594,6 +594,47 @@ details summary::-webkit-details-marker {
   display: none;
 }
 
+/* ---- Acordeones de paneles secundarios ---- */
+.acc {
+  border: 1px solid #e5e7eb;
+  border-radius: 9px;
+  margin-top: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+.acc-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+  background: #f8fafc;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+.acc-summary::-webkit-details-marker {
+  display: none;
+}
+.acc-summary::after {
+  content: '▾';
+  color: #94a3b8;
+  transition: transform .15s;
+  margin-left: 8px;
+}
+.acc[open] > .acc-summary::after {
+  transform: rotate(180deg);
+}
+.acc-summary:hover {
+  background: #f1f5f9;
+}
+.acc-body {
+  padding: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
 /* ---- Editor de horarios (Configuración) ---- */
 .schedule-row {
   display: grid;
