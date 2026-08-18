@@ -23,6 +23,58 @@
 // ============================================
 
 // ============================================
+// MEJORAS V4 (sobre la V4 Pro anterior)
+// 1) Peso por antigüedad (recencyWeight): los sorteos recientes pesan más
+//    en el puntaje, pero los antiguos nunca llegan a pesar 0 (RECENCY_FLOOR).
+// 2) Puntaje del ranking de números ahora es transparente y normalizado
+//    0-100: 40% frecuencia bruta + 25% años distintos + 35% frecuencia
+//    ponderada por antigüedad (antes era c*2+years sin explicar el porqué).
+// 3) Repetición entre años: se listan los años exactos en que salió cada
+//    número del top, no solo el conteo.
+// 4) Rachas: racha de años consecutivos más larga y si el patrón de un
+//    número tiende a ser consecutivo o alterno.
+// 5) Terminaciones: frecuencia del último dígito, que la V anterior no
+//    calculaba en ningún lado pese a estar en el pedido original.
+// 6) Números espejo (12↔21, 35↔53, capicúas como su propio espejo).
+// 7) Palés cruzados: se marca en la tabla de palés cuáles tienen sus DOS
+//    números dentro del top del ranking.
+// 8) "Palés destacados estadísticamente": combina TODAS las parejas
+//    posibles del top de números (no solo las que ya aparecieron juntas) y
+//    las puntúa por fuerza individual + coincidencia histórica + espejo.
+// 9) Comparación automática con el día calendario anterior (ej. 18 vs 17 de
+//    agosto) por lotería: números/palés en común y quién subió o bajó.
+// 10) Panel de confianza estadística según el tamaño real de la muestra
+//     (sorteos y años), dejando explícito que nunca es una probabilidad de
+//     acierto ni una predicción.
+// El comparador por lotería (analizar una sola, ej. solo Loteka) ya existía
+// vía el selector de loterías: cada lotería seleccionada genera su propio
+// bloque independiente, nunca se mezclan números entre loterías distintas.
+// ============================================
+
+// ============================================
+// MEJORAS V5 (patrones más finos, sobre la V4)
+// 1) Números repetidores: gap promedio entre apariciones de un número,
+//    calculado sobre TODO el histórico de la lotería (no solo la fecha).
+// 2) Espejos que se siguen: mide cuántas veces el espejo de un número
+//    aparece en el sorteo INMEDIATAMENTE siguiente (todo el histórico).
+// 3) Decenas: frecuencia agrupada en bloques 00-09, 10-19, ..., 90-99.
+// 4) Comportamiento alrededor de la fecha: ventana ±3 días (ej. 15 a 21 de
+//    agosto para el 18), combinando todos los años, además de la fecha exacta.
+// 5) Número y palé arrastrado: comparación año por año (nunca mezclando
+//    años distintos) entre el día anterior y la fecha analizada.
+// 6) Matriz de números 00-99 con indicador de color según el puntaje final.
+// 7) Puntaje mejorado y 100% transparente: 20% frecuencia + 20% años +
+//    20% tendencia reciente + 15% ventana de fechas + 15% palés +
+//    10% espejo/terminación (reemplaza la fórmula 40/25/35 de la V4).
+// 8) "Ver por qué": cada número del ranking tiene un desplegable que explica,
+//    en texto plano, cómo se armó su puntaje (nunca es una caja negra).
+// Siguiente paso pendiente (no incluido en esta versión): backtesting —
+// re-generar el ranking usando solo información disponible ANTES de cada
+// sorteo histórico y medir qué tan bien (o mal) habría acertado, para saber
+// si el método aporta algo real o si es equivalente a elegir al azar.
+// ============================================
+
+// ============================================
 // DATOS INICIALES (respaldo estático)
 // ============================================
 const INITIAL = [
@@ -514,6 +566,40 @@ function compareDateStrings(a, b) {
   return b.localeCompare(a); // orden descendente (más reciente primero)
 }
 
+// Días por mes (año no bisiesto para febrero; es una aproximación suficiente
+// para calcular "el día anterior" al comparar fechas como 17/18 de agosto,
+// donde el caso 29 de febrero es un borde poco relevante para este uso).
+const DAYS_IN_MONTH = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+// Devuelve {m, d} del día calendario anterior a (month, day), cruzando de
+// mes cuando corresponde (ej: 1 de marzo -> 28 de febrero). Se usa SOLO para
+// la comparación automática de fechas (V4), nunca para ordenar/comparar
+// fechas reales de sorteos (eso sigue siendo compareDateStrings sobre strings).
+function getPreviousCalendarDay(month, day) {
+  if (day > 1) return { m: month, d: day - 1 };
+  const prevMonth = month === 1 ? 12 : month - 1;
+  return { m: prevMonth, d: DAYS_IN_MONTH[prevMonth - 1] };
+}
+
+// ============================================
+// PESO POR ANTIGÜEDAD (V4)
+// Da más importancia a los sorteos recientes SIN eliminar los antiguos del
+// cálculo: el peso decae con la distancia en años pero nunca baja de
+// RECENCY_FLOOR, así un dato de hace 10 años sigue contando, solo que menos
+// que uno de este año. currentYear usa el reloj real: aquí es correcto
+// porque solo mide "qué tan viejo es un dato", no se usa para ordenar ni
+// comparar fechas de sorteos entre sí.
+// ============================================
+const RECENCY_DECAY = 0.15;
+const RECENCY_FLOOR = 0.35;
+const currentYearForWeights = new Date().getFullYear();
+
+function recencyWeight(year) {
+  const yearsAgo = Math.max(0, currentYearForWeights - Number(year));
+  const w = 1 / (1 + yearsAgo * RECENCY_DECAY);
+  return Math.max(RECENCY_FLOOR, w);
+}
+
 // ============================================
 // ANÁLISIS Y CÁLCULOS
 // Genera un bloque de resultados INDEPENDIENTE por cada lotería
@@ -560,6 +646,307 @@ function analyze() {
   resultsEl.innerHTML = blocks.join("");
 }
 
+// ============================================
+// UTILIDADES DE DESPLAZAMIENTO DE FECHA (V5)
+// Generaliza getPreviousCalendarDay para moverse N días calendario hacia
+// adelante o atrás (aproximando febrero a 28 días, igual que en V4). Se usa
+// para la "ventana alrededor de la fecha" (ej: 15 a 21 de agosto) y para el
+// número/palé arrastrado (día anterior exacto).
+// ============================================
+function getNextCalendarDay(month, day) {
+  if (day < DAYS_IN_MONTH[month - 1]) return { m: month, d: day + 1 };
+  const nextMonth = month === 12 ? 1 : month + 1;
+  return { m: nextMonth, d: 1 };
+}
+
+function shiftCalendarDay(month, day, offset) {
+  let m = month, d = day;
+  const steps = Math.abs(offset);
+  for (let i = 0; i < steps; i++) {
+    const next = offset > 0 ? getNextCalendarDay(m, d) : getPreviousCalendarDay(m, d);
+    m = next.m; d = next.d;
+  }
+  return { m, d };
+}
+
+// ============================================
+// V5 · NÚMEROS REPETIDORES
+// Sobre TODO el histórico de la lotería (no solo la fecha filtrada, porque
+// "repetidor" es un comportamiento de la lotería en general): mide, para
+// cada número, cuántos sorteos pasan entre una aparición y la siguiente.
+// ============================================
+function computeGapStats(lottery) {
+  const rowsAll = [...data].filter(r => r.lottery === lottery).sort((a, b) => a.date.localeCompare(b.date));
+  const lastIndexSeen = {};
+  const gaps = {};
+  rowsAll.forEach((r, idx) => {
+    const ns = [...new Set(r.numbers)];
+    ns.forEach(n => {
+      if (lastIndexSeen[n] !== undefined) {
+        gaps[n] = gaps[n] || [];
+        gaps[n].push(idx - lastIndexSeen[n]);
+      }
+      lastIndexSeen[n] = idx;
+    });
+  });
+  return gaps;
+}
+
+function buildRepeatersSection(topRanked, gapStats) {
+  const rowsHtml = topRanked.map(x => {
+    const g = gapStats[x.n] || [];
+    if (g.length === 0) {
+      return `<tr><td><span class="num">${x.n}</span></td><td colspan="2" class="small muted">Solo apareció una vez en todo el histórico de esta lotería: no hay repeticiones que medir.</td></tr>`;
+    }
+    const avgGap = (g.reduce((a, b) => a + b, 0) / g.length).toFixed(1);
+    const withinFew = g.filter(v => v <= 3).length;
+    const rate = Math.round((withinFew / g.length) * 100);
+    return `
+      <tr>
+        <td><span class="num">${x.n}</span></td>
+        <td>Repite en promedio cada <strong>${avgGap}</strong> sorteos</td>
+        <td class="small">${rate}% de sus repeticiones ocurrieron dentro de los 3 sorteos siguientes</td>
+      </tr>
+    `;
+  }).join("");
+  return `<table><tr><th>Número</th><th>Gap promedio entre apariciones</th><th>Repetición cercana</th></tr>${rowsHtml}</table>
+    <div class="hint">Calculado sobre TODO el histórico de esta lotería (no solo esta fecha), contando sorteos de distancia entre una aparición y la siguiente.</div>`;
+}
+
+// ============================================
+// V5 · ESPEJOS QUE SE SIGUEN
+// Sobre todo el histórico de la lotería: cada vez que un número sale, mira
+// si su espejo aparece en el SORTEO INMEDIATAMENTE SIGUIENTE.
+// ============================================
+function computeMirrorFollowStats(lottery) {
+  const rowsAll = [...data].filter(r => r.lottery === lottery).sort((a, b) => a.date.localeCompare(b.date));
+  const followCount = {}, totalCount = {};
+  for (let i = 0; i < rowsAll.length - 1; i++) {
+    const cur = [...new Set(rowsAll[i].numbers)];
+    const next = new Set(rowsAll[i + 1].numbers);
+    cur.forEach(n => {
+      totalCount[n] = (totalCount[n] || 0) + 1;
+      const mirror = mirrorOf(n);
+      if (mirror !== n && next.has(mirror)) followCount[n] = (followCount[n] || 0) + 1;
+    });
+  }
+  return { followCount, totalCount };
+}
+
+function buildMirrorFollowSection(topRanked, mirrorFollowStats) {
+  const rowsHtml = topRanked.map(x => {
+    const mirror = mirrorOf(x.n);
+    if (mirror === x.n) {
+      return `<tr><td><span class="num">${x.n}</span></td><td colspan="2" class="small muted">Es capicúa, no tiene espejo distinto.</td></tr>`;
+    }
+    const total = mirrorFollowStats.totalCount[x.n] || 0;
+    const follows = mirrorFollowStats.followCount[x.n] || 0;
+    const rate = total > 0 ? Math.round((follows / total) * 100) : 0;
+    return `
+      <tr>
+        <td><span class="num">${x.n}</span> → <span class="num">${mirror}</span></td>
+        <td><strong>${follows}</strong> de ${total} veces</td>
+        <td class="small">${rate}% de las veces que salió ${x.n}, su espejo ${mirror} salió en el sorteo siguiente</td>
+      </tr>
+    `;
+  }).join("");
+  return `<table><tr><th>Número → Espejo</th><th>Veces que lo siguió</th><th>Tasa</th></tr>${rowsHtml}</table>
+    <div class="hint">Calculado sobre todo el histórico de la lotería, sorteo por sorteo en orden cronológico.</div>`;
+}
+
+// ============================================
+// V5 · DECENAS
+// Agrupa los números 00-99 en 10 decenas y suma la frecuencia de la fecha
+// analizada dentro de cada una.
+// ============================================
+function buildDecadeSection(freq) {
+  const decades = Array.from({ length: 10 }, (_, i) => ({ label: `${i}0–${i}9`, count: 0 }));
+  Object.entries(freq).forEach(([n, c]) => {
+    const decadeIdx = Math.floor(Number(n) / 10);
+    decades[decadeIdx].count += c;
+  });
+  const max = Math.max(...decades.map(x => x.count), 1);
+  return `
+    <table>
+      <tr><th>Decena</th><th>Frecuencia total</th><th></th></tr>
+      ${decades.map(x => `
+        <tr>
+          <td><strong>${x.label}</strong></td>
+          <td>${x.count}</td>
+          <td><div class="progress-bar"><div class="progress-fill bar-normal" style="width:${Math.max(6, (x.count / max) * 100)}%">${x.count}</div></div></td>
+        </tr>
+      `).join("")}
+    </table>
+  `;
+}
+
+// ============================================
+// V5 · COMPORTAMIENTO ALREDEDOR DE LA FECHA
+// En vez de mirar solo el 18 de agosto, mira una ventana (por defecto ±3
+// días: 15 a 21 de agosto) a través de todos los años, y muestra qué
+// números tienen más presencia combinada en esos días cercanos.
+// ============================================
+function computeWindowStats(month, day, lottery, radius = 3) {
+  const offsets = [];
+  for (let off = -radius; off <= radius; off++) offsets.push(off);
+  const combinedFreq = {};
+  const perOffsetLabel = [];
+  offsets.forEach(off => {
+    const { m, d } = shiftCalendarDay(month, day, off);
+    const matched = data.filter(r => {
+      const { m: rm, d: rd } = splitDate(r.date);
+      return rm === m && rd === d && r.lottery === lottery;
+    });
+    perOffsetLabel.push({ off, label: `${pad(d)}/${pad(m)}`, count: matched.length });
+    matched.forEach(r => {
+      [...new Set(r.numbers)].forEach(n => { combinedFreq[n] = (combinedFreq[n] || 0) + 1; });
+    });
+  });
+  return { combinedFreq, perOffsetLabel };
+}
+
+function buildWindowSection(windowStats, exactFreq) {
+  const entries = Object.entries(windowStats.combinedFreq)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+    .slice(0, 10);
+  const rangeLabel = `${windowStats.perOffsetLabel[0].label} → ${windowStats.perOffsetLabel[windowStats.perOffsetLabel.length - 1].label}`;
+  if (entries.length === 0) return '<div class="empty">Sin datos en la ventana de fechas cercanas.</div>';
+  return `
+    <div class="hint">Ventana analizada: ${rangeLabel} (todos los años combinados).</div>
+    <table>
+      <tr><th>Número</th><th>Frecuencia en la ventana</th><th>Frecuencia solo en la fecha exacta</th></tr>
+      ${entries.map(([n, c]) => `
+        <tr>
+          <td><span class="num">${n}</span></td>
+          <td><strong>${c}</strong></td>
+          <td class="small">${exactFreq[n] || 0}</td>
+        </tr>
+      `).join("")}
+    </table>
+  `;
+}
+
+// ============================================
+// V5 · NÚMERO Y PALÉ ARRASTRADO
+// Compara, año por año, el sorteo del día anterior con el de la fecha
+// analizada: si un número (o un palé) salió en ambos DENTRO DEL MISMO AÑO,
+// se cuenta como "arrastrado".
+// ============================================
+function computeDragStats(month, day, lottery) {
+  const prev = getPreviousCalendarDay(month, day);
+  const curRows = data.filter(r => { const { m, d: dd } = splitDate(r.date); return m === month && dd === day && r.lottery === lottery; });
+  const prevRows = data.filter(r => { const { m, d: dd } = splitDate(r.date); return m === prev.m && dd === prev.d && r.lottery === lottery; });
+
+  const curByYear = {}, prevByYear = {};
+  curRows.forEach(r => { curByYear[r.date.substring(0, 4)] = [...new Set(r.numbers)]; });
+  prevRows.forEach(r => { prevByYear[r.date.substring(0, 4)] = [...new Set(r.numbers)]; });
+
+  const draggedNumbers = {};
+  const draggedPairs = {};
+  let yearsWithBoth = 0;
+
+  Object.keys(curByYear).forEach(yr => {
+    if (!prevByYear[yr]) return;
+    yearsWithBoth++;
+    const curSet = new Set(curByYear[yr]);
+    const prevSet = new Set(prevByYear[yr]);
+
+    curByYear[yr].forEach(n => {
+      if (prevSet.has(n)) draggedNumbers[n] = (draggedNumbers[n] || 0) + 1;
+    });
+
+    const curPairs = new Set();
+    for (let i = 0; i < curByYear[yr].length; i++)
+      for (let j = i + 1; j < curByYear[yr].length; j++)
+        curPairs.add([curByYear[yr][i], curByYear[yr][j]].sort().join("–"));
+
+    const prevPairs = new Set();
+    for (let i = 0; i < prevByYear[yr].length; i++)
+      for (let j = i + 1; j < prevByYear[yr].length; j++)
+        prevPairs.add([prevByYear[yr][i], prevByYear[yr][j]].sort().join("–"));
+
+    curPairs.forEach(p => { if (prevPairs.has(p)) draggedPairs[p] = (draggedPairs[p] || 0) + 1; });
+  });
+
+  return { draggedNumbers, draggedPairs, yearsWithBoth, prev };
+}
+
+function buildDragSection(dragStats) {
+  if (dragStats.yearsWithBoth === 0) {
+    return `<div class="empty">No hay años con datos tanto del ${pad(dragStats.prev.d)}/${pad(dragStats.prev.m)} como de la fecha analizada para esta lotería.</div>`;
+  }
+  const numberEntries = Object.entries(dragStats.draggedNumbers).sort((a, b) => b[1] - a[1]);
+  const pairEntries = Object.entries(dragStats.draggedPairs).sort((a, b) => b[1] - a[1]);
+
+  const numbersHtml = numberEntries.length
+    ? `<table><tr><th>Número</th><th>Años arrastrado</th></tr>${numberEntries.map(([n, c]) => `<tr><td><span class="num">${n}</span></td><td><strong>${c}</strong> de ${dragStats.yearsWithBoth} año${dragStats.yearsWithBoth === 1 ? "" : "s"}</td></tr>`).join("")}</table>`
+    : '<div class="empty">Ningún número se repitió del día anterior al analizado en el mismo año.</div>';
+
+  const pairsHtml = pairEntries.length
+    ? `<table><tr><th>Palé</th><th>Años arrastrado</th></tr>${pairEntries.map(([p, c]) => `<tr><td><span class="num">${p}</span></td><td><strong>${c}</strong> de ${dragStats.yearsWithBoth} año${dragStats.yearsWithBoth === 1 ? "" : "s"}</td></tr>`).join("")}</table>`
+    : '<div class="empty">Ningún palé se repitió del día anterior al analizado en el mismo año.</div>';
+
+  return `
+    <div class="lottery-result-sub">🔥 Número arrastrado (salió el ${pad(dragStats.prev.d)}/${pad(dragStats.prev.m)} y de nuevo en la fecha analizada, mismo año)</div>
+    ${numbersHtml}
+    <div class="lottery-result-sub">🎯 Palé arrastrado</div>
+    ${pairsHtml}
+    <div class="hint">Se compara año por año (no se mezclan años distintos): solo cuenta cuando AMBAS fechas tienen datos en el mismo año.</div>
+  `;
+}
+
+// ============================================
+// V5 · MATRIZ DE NÚMEROS 00-99
+// Grilla completa con un indicador de color por número, combinando el
+// puntaje final (frecuencia + años + tendencia + ventana + palés + espejo)
+// ya calculado en `ranked`. Los números sin datos en esta fecha se muestran
+// como "sin datos", nunca como si tuvieran puntaje 0 por mala suerte.
+// ============================================
+function buildNumberMatrix(rankedFull) {
+  const scoreByNumber = {};
+  rankedFull.forEach(x => { scoreByNumber[x.n] = x.score; });
+  const cells = Array.from({ length: 100 }, (_, i) => pad(i));
+  return `
+    <div style="display:grid;grid-template-columns:repeat(10,1fr);gap:4px;margin-top:8px">
+      ${cells.map(n => {
+        const score = scoreByNumber[n];
+        let cls = "";
+        if (score === undefined) cls = "";
+        else if (score >= 66) cls = "hot";
+        else if (score >= 33) cls = "recommended";
+        else cls = "cold";
+        const title = score === undefined ? "Sin datos en esta fecha" : `Puntaje ${score.toFixed(0)}`;
+        return `<span class="num ${cls}" style="text-align:center;margin:0;font-size:11px;padding:6px 2px" title="${title}">${n}</span>`;
+      }).join("")}
+    </div>
+    <div class="hint">🔥 Puntaje alto · ✨ Puntaje medio · ❄️ Puntaje bajo o sin marcar · sin color = sin ninguna aparición en esta fecha/lotería. Pasa el mouse sobre un número para ver su puntaje exacto.</div>
+  `;
+}
+
+// ============================================
+// V5 · "EXPLICAR POR QUÉ ESTE NÚMERO ESTÁ ARRIBA"
+// Convierte los componentes del puntaje de un número en una explicación en
+// texto plano, para que el ranking deje de ser una caja negra.
+// ============================================
+function explainNumberScore(x, month, day, paleCount, terminationRank) {
+  const bullets = [];
+  bullets.push(`Apareció <strong>${x.c}</strong> ${x.c === 1 ? "vez" : "veces"} en los sorteos analizados para el ${pad(day)}/${pad(month)} (todos los años).`);
+  bullets.push(`Presente en <strong>${x.years}</strong> año${x.years === 1 ? "" : "s"} distinto${x.years === 1 ? "" : "s"}: ${x.yearsList.join(", ")}.`);
+  bullets.push(`Forma <strong>${paleCount}</strong> palé${paleCount === 1 ? "" : "s"} distinto${paleCount === 1 ? "" : "s"} en esta fecha.`);
+  if (terminationRank) {
+    bullets.push(`Su terminación (…${x.n.slice(-1)}) es ${terminationRank}.`);
+  }
+  bullets.push(`Componentes del puntaje (0-100 cada uno): frecuencia ${x.freqPct.toFixed(0)} · años ${x.yearsPct.toFixed(0)} · tendencia reciente ${x.weightedPct.toFixed(0)} · ventana de fechas ${x.windowPct.toFixed(0)} · palés ${x.paleScorePct.toFixed(0)} · espejo/terminación ${x.mirrorTermPct.toFixed(0)}.`);
+  return `
+    <details style="margin-top:4px">
+      <summary style="cursor:pointer;color:#0f766e;font-weight:700;font-size:12px">🔬 Ver por qué el ${x.n} tiene puntaje ${x.score.toFixed(1)}</summary>
+      <ul class="small" style="margin:6px 0 0 18px;padding:0">
+        ${bullets.map(b => `<li style="margin-bottom:3px">${b}</li>`).join("")}
+      </ul>
+    </details>
+  `;
+}
+
 // Calcula ranking, palés e insights para UNA sola lotería y devuelve el
 // bloque HTML ya armado, junto con la cantidad de sorteos encontrados.
 // Combina TODOS los años del histórico para el día/mes dado: comparar por
@@ -591,15 +978,19 @@ function buildLotteryResultBlock(lottery, m, d, top) {
     html += `<div class="hint">Ya se están comparando TODOS los años de tu histórico para este día/mes — es que solo tienes ${years.length} año cargado para esta lotería en esa fecha. Importa más historial (CSV) o actualiza los datos remotos para comparar más años.</div>`;
   }
 
-  const freq = {}, pair = {}, yearFreq = {};
+  const freq = {}, pair = {}, yearFreq = {}, weightedFreq = {}, terminationFreq = {};
 
   rows.forEach(r => {
     const ns = [...new Set(r.numbers)];
+    const yr = r.date.substring(0, 4);
+    const w = recencyWeight(yr);
     ns.forEach(n => {
       freq[n] = (freq[n] || 0) + 1;
-      const yr = r.date.substring(0, 4);
+      weightedFreq[n] = (weightedFreq[n] || 0) + w;
       yearFreq[n] ??= {};
       yearFreq[n][yr] = (yearFreq[n][yr] || 0) + 1;
+      const term = n.slice(-1);
+      terminationFreq[term] = (terminationFreq[term] || 0) + 1;
     });
 
     for (let i = 0; i < ns.length; i++) {
@@ -611,52 +1002,131 @@ function buildLotteryResultBlock(lottery, m, d, top) {
   });
 
   const maxFreq = Math.max(...Object.values(freq), 1);
+  const maxWeighted = Math.max(...Object.values(weightedFreq), 0.0001);
+  const maxYears = Math.max(...Object.values(yearFreq).map(y => Object.keys(y).length), 1);
+
+  // V5: componentes adicionales del puntaje — ventana alrededor de la fecha,
+  // fuerza en palés, y espejo/terminación.
+  const windowStats = computeWindowStats(m, d, lottery, 3);
+  const paleFreqPerNumber = {};
+  Object.entries(pair).forEach(([key, count]) => {
+    const [a, b] = key.split("–");
+    paleFreqPerNumber[a] = (paleFreqPerNumber[a] || 0) + count;
+    paleFreqPerNumber[b] = (paleFreqPerNumber[b] || 0) + count;
+  });
+  const paleCountPerNumber = {};
+  Object.keys(pair).forEach(key => {
+    const [a, b] = key.split("–");
+    paleCountPerNumber[a] = (paleCountPerNumber[a] || 0) + 1;
+    paleCountPerNumber[b] = (paleCountPerNumber[b] || 0) + 1;
+  });
+  const maxWindow = Math.max(...Object.values(windowStats.combinedFreq), 1);
+  const maxPaleFreq = Math.max(...Object.values(paleFreqPerNumber), 1);
+  const maxTermination = Math.max(...Object.values(terminationFreq), 1);
+
+  // Puntaje transparente del ranking de números (V5):
+  //   20% frecuencia histórica bruta + 20% años distintos + 20% tendencia
+  //   reciente (frecuencia ponderada por antigüedad) + 15% comportamiento
+  //   en la ventana de fechas cercanas (±3 días) + 15% fuerza en palés
+  //   + 10% espejo/terminación. Cada componente se normaliza 0-100 contra
+  //   el máximo observado en ESTA lotería/fecha. Nunca se usa para afirmar
+  //   que un número "va a salir": ver buildConfidencePanel y explainNumberScore.
   const ranked = Object.entries(freq)
     .map(([n, c]) => {
       const years = Object.keys(yearFreq[n] || {}).length;
-      const score = c * 2 + years;
-      return [n, c, years, score];
+      const wFreq = weightedFreq[n] || 0;
+      const freqPct = (c / maxFreq) * 100;
+      const yearsPct = (years / maxYears) * 100;
+      const weightedPct = (wFreq / maxWeighted) * 100;
+      const windowPct = ((windowStats.combinedFreq[n] || 0) / maxWindow) * 100;
+      const paleScorePct = ((paleFreqPerNumber[n] || 0) / maxPaleFreq) * 100;
+      const mirror = mirrorOf(n);
+      const mirrorPct = ((freq[mirror] || 0) / maxFreq) * 100;
+      const termPct = ((terminationFreq[n.slice(-1)] || 0) / maxTermination) * 100;
+      const mirrorTermPct = (mirrorPct + termPct) / 2;
+      const score = freqPct * 0.20 + yearsPct * 0.20 + weightedPct * 0.20 + windowPct * 0.15 + paleScorePct * 0.15 + mirrorTermPct * 0.10;
+      return {
+        n, c, years, wFreq, freqPct, yearsPct, weightedPct, windowPct, paleScorePct, mirrorTermPct, score,
+        yearsList: Object.keys(yearFreq[n] || {}).sort()
+      };
     })
-    .sort((a, b) => b[3] - a[3] || b[1] - a[1] || a[0].localeCompare(b[0]));
+    .sort((a, b) => b.score - a.score || b.c - a.c || a.n.localeCompare(b.n));
 
   const pairs = Object.entries(pair)
     .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
 
   const allPossibleNumbers = Array.from({length: 100}, (_, i) => pad(i));
-  const hotNumbers = new Set(ranked.map(x => x[0]));
+  const hotNumbers = new Set(ranked.map(x => x.n));
   const coldNumbers = allPossibleNumbers.filter(n => !hotNumbers.has(n));
 
   // Ranking con barras de progreso CSS: los 5 más calientes resaltan en rojo/naranja
-  html += '<div class="lottery-result-sub">🔥 Ranking estadístico</div>';
+  const topRanked = ranked.slice(0, top);
+  const topNumberSet = new Set(topRanked.map(x => x.n));
+
+  html += '<div class="lottery-result-sub">🔥 Ranking estadístico (puntaje: 20% frecuencia + 20% años + 20% tendencia reciente + 15% ventana de fechas + 15% palés + 10% espejo/terminación)</div>';
   html += `
     <table>
       <tr><th>#</th><th>Número</th><th>Frecuencia</th><th>Años</th><th>Puntaje</th></tr>
-      ${ranked.slice(0, top).map((x, i) => {
-        const stars = generateStars(x[3], 5);
+      ${topRanked.map((x, i) => {
+        const stars = generateStars(x.score, 100);
         const ranking_class = i < 3 ? "hot" : i < 8 ? "recommended" : "";
         const barClass = i < 5 ? "bar-hot" : "bar-normal";
-        const widthPct = Math.max(6, (x[1] / maxFreq) * 100);
+        const widthPct = Math.max(6, (x.c / maxFreq) * 100);
+        const termFreq = terminationFreq[x.n.slice(-1)] || 0;
+        const termLabel = termFreq >= maxTermination ? "la terminación más frecuente en esta fecha" : termFreq >= maxTermination * 0.6 ? "una terminación bastante frecuente en esta fecha" : "una terminación poco frecuente en esta fecha";
         return `
           <tr>
             <td><strong>${i + 1}</strong></td>
-            <td><span class="num ${ranking_class}">${x[0]}</span></td>
+            <td><span class="num ${ranking_class}">${x.n}</span></td>
             <td>
               <div class="progress-bar-container">
                 <div class="progress-bar">
                   <div class="progress-fill ${barClass}" style="width: ${widthPct}%">
-                    ${x[1]}
+                    ${x.c}
                   </div>
                 </div>
-                <div class="frequency-count">${x[1]}</div>
+                <div class="frequency-count">${x.c}</div>
               </div>
             </td>
-            <td><strong>${x[2]}</strong></td>
-            <td><span class="stars">${stars}</span></td>
+            <td><strong>${x.years}</strong></td>
+            <td>
+              <span class="stars">${stars}</span> <span class="small muted">${x.score.toFixed(1)}</span>
+              ${explainNumberScore(x, m, d, paleCountPerNumber[x.n] || 0, termLabel)}
+            </td>
           </tr>
         `;
       }).join("")}
     </table>
   `;
+
+  html += '<div class="lottery-result-sub">🔄 Números repetidores</div>';
+  html += buildRepeatersSection(topRanked.slice(0, 10), computeGapStats(lottery));
+
+  html += '<div class="lottery-result-sub">↔️ Espejos que se siguen</div>';
+  html += buildMirrorFollowSection(topRanked.slice(0, 8), computeMirrorFollowStats(lottery));
+
+  html += '<div class="lottery-result-sub">🔢 Decenas</div>';
+  html += buildDecadeSection(freq);
+
+  html += '<div class="lottery-result-sub">📅 Comportamiento alrededor de la fecha</div>';
+  html += buildWindowSection(windowStats, freq);
+
+  html += buildDragSection(computeDragStats(m, d, lottery));
+
+  html += '<div class="lottery-result-sub">📊 Matriz de números 00–99</div>';
+  html += buildNumberMatrix(ranked);
+
+  html += '<div class="lottery-result-sub">🔁 Repetición entre años</div>';
+  html += buildRepetitionSection(topRanked.slice(0, 10), years.length);
+
+  html += '<div class="lottery-result-sub">📉 Rachas por número</div>';
+  html += buildStreakSection(topRanked.slice(0, 10), years);
+
+  html += '<div class="lottery-result-sub">#️⃣ Terminaciones</div>';
+  html += buildTerminationSection(terminationFreq, rows.length);
+
+  html += '<div class="lottery-result-sub">🪞 Números espejo</div>';
+  html += buildMirrorSection(topRanked.slice(0, 8), freq);
 
   html += '<div class="lottery-result-sub">💡 Recomendaciones inteligentes</div>';
   html += renderIntelligentRecommendations(ranked, coldNumbers.slice(0, 5), m, d, lotteryFilter);
@@ -665,22 +1135,300 @@ function buildLotteryResultBlock(lottery, m, d, top) {
   if (pairs.length) {
     html += `
       <table>
-        <tr><th>#</th><th>Palé</th><th>Apariciones</th></tr>
-        ${pairs.slice(0, top).map((x, i) => `
+        <tr><th>#</th><th>Palé</th><th>Apariciones</th><th>Tipo</th></tr>
+        ${pairs.slice(0, top).map((x, i) => {
+          const [a, b] = x[0].split("–");
+          const crossed = topNumberSet.has(a) && topNumberSet.has(b);
+          return `
           <tr>
             <td><strong>${i + 1}</strong></td>
             <td><span class="num">${x[0]}</span></td>
             <td><strong>${x[1]}</strong></td>
+            <td>${crossed ? '<span class="lottery-hour-tag">🔗 Palé cruzado</span>' : '<span class="small muted">—</span>'}</td>
           </tr>
-        `).join("")}
+        `;}).join("")}
       </table>
+      <div class="hint">🔗 "Palé cruzado" = sus dos números están AMBOS en el top del ranking estadístico de esta fecha.</div>
     `;
   } else {
     html += '<div class="empty">No hay palés suficientes.</div>';
   }
 
+  html += '<div class="lottery-result-sub">🎯 Palés destacados estadísticamente (candidatos)</div>';
+  html += buildPaleCandidatesSection(topRanked.slice(0, 8), pair);
+
+  html += '<div class="lottery-result-sub">📅 Comparación con el día anterior</div>';
+  html += buildDateComparisonSection(m, d, lottery, ranked, pairs);
+
+  html += buildConfidencePanel(rows.length, years.length);
+
   html += '</section>';
   return { html, rowCount: rows.length, years };
+}
+
+// ============================================
+// REPETICIÓN ENTRE AÑOS (V4)
+// Para cada número del top, muestra en qué años concretos apareció en esa
+// fecha, para detectar de un vistazo si se repite seguido o de forma salteada.
+// ============================================
+function buildRepetitionSection(topRanked, totalYears) {
+  if (topRanked.length === 0 || totalYears === 0) {
+    return '<div class="empty">Sin datos suficientes.</div>';
+  }
+  return `
+    <table>
+      <tr><th>Número</th><th>Años en los que apareció</th><th>Presencia</th></tr>
+      ${topRanked.map(x => `
+        <tr>
+          <td><span class="num">${x.n}</span></td>
+          <td class="small">${x.yearsList.join(", ")}</td>
+          <td><strong>${x.years}</strong> de ${totalYears} años</td>
+        </tr>
+      `).join("")}
+    </table>
+  `;
+}
+
+// ============================================
+// RACHAS (V4)
+// A partir de los años (ordenados) en que cada número apareció en esta
+// fecha, calcula la racha de años CONSECUTIVOS más larga y si el patrón es
+// más bien consecutivo o alterno (salteado). Es descriptivo, no predictivo.
+// ============================================
+function buildStreakSection(topRanked, allYearsForDate) {
+  if (topRanked.length === 0) return '<div class="empty">Sin datos suficientes.</div>';
+  const sortedAllYears = [...allYearsForDate].sort();
+
+  const rowsHtml = topRanked.map(x => {
+    const ys = x.yearsList.map(Number).sort((a, b) => a - b);
+    let longestStreak = 1, currentStreak = 1;
+    for (let i = 1; i < ys.length; i++) {
+      if (ys[i] === ys[i - 1] + 1) {
+        currentStreak++;
+        longestStreak = Math.max(longestStreak, currentStreak);
+      } else {
+        currentStreak = 1;
+      }
+    }
+    if (ys.length <= 1) longestStreak = ys.length;
+    const pattern = ys.length <= 1 ? "—" : (longestStreak >= Math.ceil(ys.length * 0.6) ? "Tiende a ser consecutivo" : "Tiende a ser alterno/salteado");
+    const lastYear = sortedAllYears[sortedAllYears.length - 1];
+    const ausente = ys.length > 0 && String(ys[ys.length - 1]) !== lastYear;
+    return `
+      <tr>
+        <td><span class="num">${x.n}</span></td>
+        <td><strong>${longestStreak}</strong> año${longestStreak === 1 ? "" : "s"} seguido${longestStreak === 1 ? "" : "s"}</td>
+        <td class="small">${pattern}</td>
+        <td class="small">${ausente ? `Ausente desde ${ys[ys.length - 1]}` : "Presente en el último año con datos"}</td>
+      </tr>
+    `;
+  }).join("");
+
+  return `<table><tr><th>Número</th><th>Racha más larga</th><th>Patrón</th><th>Últimos años</th></tr>${rowsHtml}</table>`;
+}
+
+// ============================================
+// TERMINACIONES (V4)
+// Frecuencia del último dígito de cada número, sobre todos los sorteos
+// filtrados por fecha/lotería (no solo del top de números).
+// ============================================
+function buildTerminationSection(terminationFreq, totalRows) {
+  const entries = Object.entries(terminationFreq).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  if (entries.length === 0) return '<div class="empty">Sin datos suficientes.</div>';
+  const max = Math.max(...entries.map(e => e[1]), 1);
+  return `
+    <table>
+      <tr><th>Terminación</th><th>Apariciones</th><th></th></tr>
+      ${entries.map(([term, count]) => `
+        <tr>
+          <td><span class="num">…${term}</span></td>
+          <td><strong>${count}</strong></td>
+          <td>
+            <div class="progress-bar"><div class="progress-fill bar-normal" style="width:${Math.max(6, (count / max) * 100)}%">${count}</div></div>
+          </td>
+        </tr>
+      `).join("")}
+    </table>
+  `;
+}
+
+// ============================================
+// NÚMEROS ESPEJO (V4)
+// El espejo de un número de 2 cifras es el mismo número con las cifras
+// invertidas (12 <-> 21, 35 <-> 53). Si ambas cifras son iguales (33, 44),
+// el número es su propio espejo. Se muestra, para cada número del top, si
+// su espejo también tuvo actividad en esta misma fecha/lotería.
+// ============================================
+function mirrorOf(n) {
+  const chars = n.split("");
+  return chars.reverse().join("").padStart(2, "0").slice(-2);
+}
+
+function buildMirrorSection(topRanked, freq) {
+  if (topRanked.length === 0) return '<div class="empty">Sin datos suficientes.</div>';
+  const rowsHtml = topRanked.map(x => {
+    const mirror = mirrorOf(x.n);
+    const isSelfMirror = mirror === x.n;
+    const mirrorFreq = freq[mirror] || 0;
+    return `
+      <tr>
+        <td><span class="num">${x.n}</span></td>
+        <td>${isSelfMirror ? '<span class="small muted">Es capicúa (su propio espejo)</span>' : `<span class="num">${mirror}</span>`}</td>
+        <td>${isSelfMirror ? "—" : `<strong>${mirrorFreq}</strong> aparición${mirrorFreq === 1 ? "" : "es"}`}</td>
+      </tr>
+    `;
+  }).join("");
+  return `<table><tr><th>Número</th><th>Espejo</th><th>Frecuencia del espejo en esta fecha</th></tr>${rowsHtml}</table>
+    <div class="hint">Se calcula invirtiendo las cifras del número (ej: 35 → 53). No implica ninguna relación causal entre ambos.</div>`;
+}
+
+// ============================================
+// PALÉS DESTACADOS ESTADÍSTICAMENTE — "buscar palés candidatos" (V4)
+// Genera TODAS las combinaciones posibles entre los números del top y las
+// puntúa combinando: puntaje individual de cada número (ya calculado en
+// `ranked`) + si la pareja ya apareció junta históricamente en esta fecha
+// (bonus) + si son números espejo entre sí (bonus menor, es solo un patrón
+// numérico, no una relación estadística real). Nunca se llaman "más
+// probables": son "palés destacados estadísticamente".
+// ============================================
+function buildPaleCandidatesSection(topRanked, pairMap) {
+  if (topRanked.length < 2) return '<div class="empty">Se necesitan al menos 2 números en el top para generar combinaciones.</div>';
+
+  const maxIndividualScore = Math.max(...topRanked.map(x => x.score), 0.0001);
+  const candidates = [];
+
+  for (let i = 0; i < topRanked.length; i++) {
+    for (let j = i + 1; j < topRanked.length; j++) {
+      const a = topRanked[i], b = topRanked[j];
+      const key = [a.n, b.n].sort().join("–");
+      const historicAppearances = pairMap[key] || 0;
+      const isMirror = mirrorOf(a.n) === b.n;
+
+      // Puntaje del candidato: 40% puntaje individual del número A + 40% del
+      // número B (normalizados 0-100) + 15% si el palé ya salió junto
+      // históricamente en esta fecha + 5% si son números espejo.
+      const indivScorePct = ((a.score / maxIndividualScore) + (b.score / maxIndividualScore)) / 2 * 100;
+      const historicBonus = Math.min(100, historicAppearances * 25);
+      const mirrorBonus = isMirror ? 100 : 0;
+      const score = indivScorePct * 0.80 + historicBonus * 0.15 + mirrorBonus * 0.05;
+
+      candidates.push({ key, a: a.n, b: b.n, historicAppearances, isMirror, score });
+    }
+  }
+
+  candidates.sort((x, y) => y.score - x.score || y.historicAppearances - x.historicAppearances || x.key.localeCompare(y.key));
+  const top10 = candidates.slice(0, 10);
+
+  return `
+    <table>
+      <tr><th>#</th><th>Palé</th><th>¿Ya salieron juntos?</th><th>Espejo</th><th>Puntaje</th></tr>
+      ${top10.map((c, i) => `
+        <tr>
+          <td><strong>${i + 1}</strong></td>
+          <td><span class="num recommended">${c.key}</span></td>
+          <td class="small">${c.historicAppearances > 0 ? `Sí, ${c.historicAppearances} vez${c.historicAppearances === 1 ? "" : "es"}` : "No, es una combinación nueva"}</td>
+          <td class="small">${c.isMirror ? "Sí" : "—"}</td>
+          <td><strong>${c.score.toFixed(1)}</strong></td>
+        </tr>
+      `).join("")}
+    </table>
+    <div class="hint">Puntaje = 80% fuerza estadística individual de ambos números + 15% si ya aparecieron juntos en esta fecha + 5% si son números espejo. Son combinaciones destacadas del histórico analizado, no una predicción de resultado.</div>
+  `;
+}
+
+// ============================================
+// COMPARACIÓN AUTOMÁTICA CON EL DÍA ANTERIOR (V4)
+// Ej: si se analiza el 18 de agosto, compara automáticamente contra el 17
+// de agosto para la misma lotería: números y palés en común, y cuáles
+// números subieron o bajaron en frecuencia de una fecha a otra.
+// ============================================
+function buildDateComparisonSection(month, day, lottery, currentRanked, currentPairs) {
+  const prev = getPreviousCalendarDay(month, day);
+  const prevRows = data.filter(r => {
+    const { m: rm, d: rd } = splitDate(r.date);
+    return rm === prev.m && rd === prev.d && r.lottery === lottery;
+  });
+
+  if (prevRows.length === 0) {
+    return `<div class="empty">Sin datos para el ${pad(prev.d)}/${pad(prev.m)} (día anterior) en esta lotería, no se puede comparar.</div>`;
+  }
+
+  const prevFreq = {};
+  prevRows.forEach(r => {
+    [...new Set(r.numbers)].forEach(n => { prevFreq[n] = (prevFreq[n] || 0) + 1; });
+  });
+
+  const currentFreq = {};
+  currentRanked.forEach(x => { currentFreq[x.n] = x.c; });
+
+  const currentTop = new Set(currentRanked.slice(0, 10).map(x => x.n));
+  const prevTop = new Set(Object.entries(prevFreq).sort((a, b) => b[1] - a[1]).slice(0, 10).map(x => x[0]));
+  const common = [...currentTop].filter(n => prevTop.has(n));
+
+  const allNums = new Set([...Object.keys(currentFreq), ...Object.keys(prevFreq)]);
+  const up = [], down = [];
+  allNums.forEach(n => {
+    const cur = currentFreq[n] || 0, prv = prevFreq[n] || 0;
+    if (cur > prv) up.push({ n, delta: cur - prv });
+    else if (prv > cur) down.push({ n, delta: prv - cur });
+  });
+  up.sort((a, b) => b.delta - a.delta);
+  down.sort((a, b) => b.delta - a.delta);
+
+  const prevPairSet = new Set();
+  prevRows.forEach(r => {
+    const ns = [...new Set(r.numbers)];
+    for (let i = 0; i < ns.length; i++) for (let j = i + 1; j < ns.length; j++) {
+      prevPairSet.add([ns[i], ns[j]].sort().join("–"));
+    }
+  });
+  const commonPairs = currentPairs.map(x => x[0]).filter(p => prevPairSet.has(p)).slice(0, 5);
+
+  return `
+    <div class="insights-grid">
+      <div class="insight-card">
+        <strong>Números en el top de ambas fechas</strong>
+        <div>${common.length ? common.map(n => `<span class="num">${n}</span>`).join(" ") : "Ninguno en común"}</div>
+      </div>
+      <div class="insight-card">
+        <strong>📈 Subieron vs. el ${pad(prev.d)}/${pad(prev.m)}</strong>
+        <div>${up.slice(0, 5).map(x => `<span class="num">${x.n}</span> (+${x.delta})`).join(" ") || "Sin cambios"}</div>
+      </div>
+      <div class="insight-card">
+        <strong>📉 Bajaron vs. el ${pad(prev.d)}/${pad(prev.m)}</strong>
+        <div>${down.slice(0, 5).map(x => `<span class="num">${x.n}</span> (-${x.delta})`).join(" ") || "Sin cambios"}</div>
+      </div>
+      <div class="insight-card">
+        <strong>Palés en común</strong>
+        <div>${commonPairs.length ? commonPairs.map(p => `<span class="num">${p}</span>`).join(" ") : "Ninguno en común"}</div>
+      </div>
+    </div>
+  `;
+}
+
+// ============================================
+// PANEL DE CONFIANZA ESTADÍSTICA (V4)
+// Clasifica el tamaño de muestra (sorteos/años analizados) en baja/media/alta
+// confianza. Es solo una indicación de cuánto histórico respalda el análisis,
+// NUNCA una probabilidad de acierto ni una predicción.
+// ============================================
+function buildConfidencePanel(rowCount, yearCount) {
+  let level, cls, msg;
+  if (yearCount < 3 || rowCount < 5) {
+    level = "Baja"; cls = "warning";
+    msg = "Muy pocos sorteos/años en el histórico para esta fecha y lotería. Los patrones que se ven pueden deberse simplemente al azar de una muestra chica.";
+  } else if (yearCount < 6 || rowCount < 15) {
+    level = "Media"; cls = "warning";
+    msg = "Hay histórico razonable, pero sigue siendo una muestra limitada. Trata estos números como referencia, no como certeza.";
+  } else {
+    level = "Alta (relativa)"; cls = "good";
+    msg = "Hay bastante histórico acumulado para esta fecha y lotería, lo que hace el patrón más estable estadísticamente. Aun así, cada sorteo es independiente y aleatorio: el histórico no cambia las probabilidades del próximo.";
+  }
+  return `
+    <div class="${cls} small" style="margin-top:12px">
+      📊 <strong>Confianza estadística: ${level}</strong> (${rowCount} sorteos, ${yearCount} años) — ${msg}
+    </div>
+  `;
 }
 
 function generateStars(score, maxScore) {
@@ -758,7 +1506,7 @@ function renderIntelligentRecommendations(ranked, coldNumbers, month, day, lotte
   html += '<div class="insight-card">';
   html += '<strong>🔥 Top 3 Calientes</strong>';
   topHot.forEach(n => {
-    html += `<div style="color:#991b1b">🔥 ${n[0]} (${n[1]} veces)</div>`;
+    html += `<div style="color:#991b1b">🔥 ${n.n} (${n.c} veces)</div>`;
   });
   html += '</div>';
 

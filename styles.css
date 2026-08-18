@@ -586,6 +586,14 @@ th {
   vertical-align: middle;
 }
 
+/* ---- V4/V5: paneles nuevos (comparación, confianza, terminaciones, matriz) ---- */
+.insight-card div + div {
+  margin-top: 3px;
+}
+details summary::-webkit-details-marker {
+  display: none;
+}
+
 /* ---- Editor de horarios (Configuración) ---- */
 .schedule-row {
   display: grid;
