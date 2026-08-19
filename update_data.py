@@ -42,6 +42,20 @@ NAME_MAP = {
     "Quiniela La Suerte": "La Suerte",
     "Quiniela La Suerte 6PM": "La Suerte 6PM",
     "Quiniela Lotedom": "Lotedom",
+    # Agregadas: estaban entrando "tal cual" (sin pasar por el mapa), lo
+    # cual ya funcionaba, pero acá quedan documentadas explícitamente y se
+    # les limpia el formato ("SXM- Quiniela Dia" -> "SXM Día") para que
+    # sean consistentes con el resto de nombres cortos de la app.
+    "New York Tarde": "New York Tarde",
+    "New York Noche": "New York Noche",
+    "Florida Tarde": "Florida Tarde",
+    "Florida Noche": "Florida Noche",
+    "Anguila 10AM": "Anguila 10AM",
+    "Anguila 1PM": "Anguila 1PM",
+    "Anguila 6PM": "Anguila 6PM",
+    "Anguila 9PM": "Anguila 9PM",
+    "SXM- Quiniela Dia": "SXM Día",
+    "SXM- Quiniela Noche": "SXM Noche",
 }
 
 
