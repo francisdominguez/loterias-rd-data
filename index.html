@@ -113,6 +113,20 @@
     <div class="actions"><button onclick="runSimulationFromUI()">🧪 Simular</button></div>
     <div id="sim-results" style="margin-top:14px"></div>
   </section>
+
+  <section class="card">
+    <div class="card-head">
+      <h2>📊 Backtest agregado</h2>
+      <p class="card-sub">Corre el simulador de arriba automáticamente sobre muchos sorteos pasados (no solo uno) y promedia el acierto. Cada prueba usa <b>únicamente</b> datos anteriores a esa fecha, igual que el simulador de una fecha. También calcula cuánto acertaría alguien eligiendo números al azar, para poder comparar.</p>
+    </div>
+    <div class="grid">
+      <div><label>Lotería</label><select id="backtest-lottery" class="single-lottery-select"></select></div>
+      <div><label>Últimos N sorteos a probar</label><input id="backtest-count" type="number" min="5" max="500" value="50"></div>
+      <div><label>Top</label><select id="backtest-top"><option value="10">10</option><option value="5">5</option><option value="15">15</option><option value="20">20</option></select></div>
+    </div>
+    <div class="actions"><button onclick="runBacktestFromUI()">📊 Correr backtest</button></div>
+    <div id="backtest-results" style="margin-top:14px"></div>
+  </section>
 </div>
 
 <div class="tab-panel" data-tab-panel="trend">

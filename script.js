@@ -2165,6 +2165,135 @@ function populateSimLotterySelect() {
 }
 
 // ============================================
+// V10 · BACKTEST AGREGADO (cierra el pendiente anotado arriba en
+// buildSimulationResultHtml: "correr la simulación sobre muchas fechas
+// distintas y mirar el acierto promedio").
+//
+// Reutiliza runSimulation() tal cual — el mismo ranking ponderado por años/
+// ventana/tendencia que usa el resto de la app, NO una frecuencia simple —
+// sobre los últimos N sorteos que ya tengan resultado real cargado para la
+// lotería elegida. Cada prueba sigue la misma regla de "solo datos
+// anteriores a esa fecha" que ya tiene el simulador de una sola fecha.
+//
+// También calcula el acierto ESPERADO si se hubiera elegido al azar (sin
+// ningún método) un candidato del mismo tamaño: por linealidad de la
+// esperanza, si el candidato se arma sin mirar el sorteo real, cada número
+// real tiene probabilidad (tamaño del candidato / 100) de caer adentro —
+// así que el acierto esperado al azar es candidatos × números_reales / 100
+// (y candidatos × combinaciones_reales / 4950 para palés, sobre C(100,2)
+// palés posibles). Comparar contra esa línea base es lo que le faltaba al
+// backtest puntual: sin ella, un "40% de acierto" no dice si el método
+// aporta algo o es indistinguible de elegir al azar.
+//
+// (No se portó la pestaña "Ciclos" de simulador-v7.html —día de semana +
+// gap promedio general—: esta app ya cubre lo mismo, mejor: ver
+// computeDrawDaysOfWeek/buildNonDailyScheduleNotice, día de semana con
+// fecha en UTC consistente en vez de mezclar local/UTC, y
+// computeGapStats/buildRepeatersSection, gap promedio por número individual
+// en vez de un solo promedio mezclando los 100 números.)
+// ============================================
+function runBacktestSeries(lottery, top, testCount) {
+  const testDates = [...new Set(data.filter(r => r.lottery === lottery).map(r => r.date))]
+    .sort()
+    .slice(-testCount);
+
+  const perTest = [];
+  testDates.forEach(targetDateStr => {
+    const sim = runSimulation(lottery, targetDateStr, top);
+    // Se descartan fechas sin ranking previo (sampleSize 0) o sin resultado
+    // real cargado todavía: no son pruebas válidas, y contarlas como "fallo"
+    // o ignorarlas sin más inflaría o desinflaría el promedio sin avisar.
+    if (sim.sampleSize === 0 || !sim.actualNumbers) return;
+    perTest.push(sim);
+  });
+
+  if (perTest.length === 0) return { lottery, top, testCount, tests: 0 };
+
+  let totalActualNumbers = 0, totalNumberHits = 0, expectedNumberHitsRandom = 0;
+  let totalPaleCandidates = 0, totalPaleHits = 0, expectedPaleHitsRandom = 0;
+
+  perTest.forEach(sim => {
+    totalActualNumbers += sim.actualNumbers.length;
+    totalNumberHits += sim.numberHits.length;
+    expectedNumberHitsRandom += sim.topRanked.length * (sim.actualNumbers.length / 100);
+
+    const actualCombos = (sim.actualNumbers.length * (sim.actualNumbers.length - 1)) / 2;
+    totalPaleCandidates += sim.topPales.length;
+    totalPaleHits += sim.paleHits.length;
+    expectedPaleHitsRandom += sim.topPales.length * (actualCombos / 4950);
+  });
+
+  return {
+    lottery, top, testCount,
+    tests: perTest.length,
+    totalActualNumbers, totalNumberHits,
+    avgHitsPerDraw: totalNumberHits / perTest.length,
+    expectedAvgHitsPerDrawRandom: expectedNumberHitsRandom / perTest.length,
+    hitRatePct: totalActualNumbers ? (totalNumberHits / totalActualNumbers) * 100 : 0,
+    expectedHitRatePct: totalActualNumbers ? (expectedNumberHitsRandom / totalActualNumbers) * 100 : 0,
+    totalPaleHits, totalPaleCandidates,
+    avgPaleHitsPerDraw: totalPaleHits / perTest.length,
+    expectedAvgPaleHitsPerDrawRandom: expectedPaleHitsRandom / perTest.length,
+  };
+}
+
+function buildBacktestResultHtml(res) {
+  const hour = getScheduleFor(res.lottery);
+  let html = `<div class="lottery-result-block">
+    <div class="lottery-result-header">
+      <h3>📊 ${escapeHtml(res.lottery)}${hour ? ` <span class="lottery-hour-tag">🕒 ${escapeHtml(hour)}</span>` : ""}</h3>
+      <span class="badge-count">${res.tests} de ${res.testCount} sorteo${res.testCount === 1 ? "" : "s"} pedido${res.testCount === 1 ? "" : "s"} usable${res.tests === 1 ? "" : "s"}</span>
+    </div>`;
+
+  if (res.tests === 0) {
+    html += `<div class="empty">No hay suficientes sorteos con resultado real cargado y con datos previos de años anteriores para esta lotería todavía — importa más histórico, actualiza los datos remotos, o prueba con otra lotería.</div></div>`;
+    return html;
+  }
+
+  html += `<div class="hint">Cada una de las ${res.tests} pruebas recalculó el ranking top ${res.top} usando SOLO datos anteriores a esa fecha (igual que el simulador de arriba) y lo comparó contra el resultado real de ese sorteo.</div>`;
+
+  const diff = res.avgHitsPerDraw - res.expectedAvgHitsPerDrawRandom;
+  const diffLabel = diff > 0.05
+    ? `+${diff.toFixed(2)} por encima del azar`
+    : diff < -0.05
+      ? `${diff.toFixed(2)} por debajo del azar`
+      : "prácticamente igual al azar";
+
+  html += `
+    <div class="insights-grid">
+      <div class="insight-card"><strong>Números acertados</strong>${res.totalNumberHits} de ${res.totalActualNumbers} (${res.hitRatePct.toFixed(1)}%)</div>
+      <div class="insight-card"><strong>Promedio por sorteo (top ${res.top})</strong>${res.avgHitsPerDraw.toFixed(2)} números acertados</div>
+      <div class="insight-card"><strong>Esperado si fuera al azar</strong>${res.expectedAvgHitsPerDrawRandom.toFixed(2)} números por sorteo (${res.expectedHitRatePct.toFixed(1)}%)</div>
+      <div class="insight-card"><strong>Diferencia contra el azar</strong>${diffLabel}</div>
+      <div class="insight-card"><strong>Palés acertados</strong>${res.totalPaleHits} en ${res.tests} sorteo${res.tests === 1 ? "" : "s"} (prom. ${res.avgPaleHitsPerDraw.toFixed(2)}/sorteo)</div>
+      <div class="insight-card"><strong>Palés esperados al azar</strong>${res.expectedAvgPaleHitsPerDrawRandom.toFixed(2)}/sorteo</div>
+    </div>
+    <div class="warning">⚠️ La línea base "al azar" asume que cada número tiene la misma probabilidad (top/100) de caer en un candidato elegido sin mirar el sorteo real. Si el promedio real queda cerca de esa línea, el método no está aportando información sobre sorteos futuros — solo describe el pasado, que es justo lo que dice el resto de la app.</div>
+  </div>`;
+  return html;
+}
+
+function runBacktestFromUI() {
+  const lottery = document.getElementById("backtest-lottery")?.value || "";
+  const testCount = +(document.getElementById("backtest-count")?.value || 50);
+  const top = +(document.getElementById("backtest-top")?.value || 10);
+  const resultsEl = document.getElementById("backtest-results");
+  if (!resultsEl) return;
+
+  if (!lottery) {
+    resultsEl.innerHTML = '<div class="empty">Elige una lotería para correr el backtest.</div>';
+    return;
+  }
+  if (!testCount || testCount < 5) {
+    resultsEl.innerHTML = '<div class="empty">Elige al menos 5 sorteos para que el promedio tenga algún sentido.</div>';
+    return;
+  }
+
+  const res = runBacktestSeries(lottery, top, testCount);
+  resultsEl.innerHTML = buildBacktestResultHtml(res);
+}
+
+// ============================================
 // V9 · TENDENCIA RECIENTE (idea tomada de portales como elboletoganador.com)
 // El resto de la app compara "este día/mes contra TODOS los años" — útil
 // para el patrón de largo plazo, pero no responde "¿qué viene pasando
