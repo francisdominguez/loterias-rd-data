@@ -1,0 +1,29 @@
+# Guarda este archivo en tu repo como: .github/workflows/update-data.yml
+name: Actualizar datos de loterías
+
+on:
+  schedule:
+    - cron: "0 3 * * *"   # todos los días 3:00 AM UTC (11:00 PM hora RD)
+  workflow_dispatch: {}     # también lo puedes correr manualmente desde la pestaña "Actions" en GitHub
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.x"
+
+      - run: pip install beautifulsoup4
+
+      - run: python update_data.py
+
+      - name: Commit si hay cambios
+        run: |
+          git config user.name "github-actions"
+          git config user.email "actions@github.com"
+          git add data.json
+          git diff --cached --quiet || git commit -m "Actualización automática de datos"
+          git push
