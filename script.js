@@ -137,6 +137,20 @@ let selectedLotteries = new Set();
 // usuario pulsó "Editar". Vive solo en memoria: se reinicia al recargar.
 let upcomingEditing = new Set();
 
+// Loterías cuya tarjeta, en la pestaña "Próxima", tiene el análisis
+// completo desplegado (el usuario tocó "Ver análisis completo"). Vive solo
+// en memoria (se reinicia al recargar), igual que upcomingEditing. Lo que
+// ya se mostraba en la tarjeta ANTES de tocar (top 3, palé, frecuente/
+// atrasado) no depende de este Set y sigue mostrándose igual, tocada o no.
+let upcomingFullExpanded = new Set();
+
+// Cachea, por lotería, el HTML del análisis completo ya calculado dentro de
+// la pestaña "Próxima" — para no recalcular ranking+backtest en cada
+// re-render de buildUpcomingSummary() mientras la tarjeta sigue expandida
+// (ej: al escribir en el formulario de "Resultado de hoy" de OTRA lotería).
+// Se invalida (se limpia entero) cada vez que cambian los datos, en save().
+let upcomingFullAnalysisCache = {};
+
 // ============================================
 // FECHA POR DEFECTO = HOY (nunca hardcodeada)
 // Solo se usa para rellenar los campos año/mes/día al cargar la página,
@@ -1216,6 +1230,22 @@ function handleUpcomingResultsClick(e) {
     buildUpcomingSummary();
     return;
   }
+  // Tocar el nombre de la lotería (o el botón "Ver análisis completo") abre
+  // o cierra, dentro de la MISMA tarjeta, todo el análisis que tiene la app
+  // para esa lotería (ranking, palés, decenas, espejos, backtest, tendencia
+  // reciente, etc.) — sin salir de la pestaña "Próxima" ni tocar lo que ya
+  // se mostraba antes de tocar (top 3, palé, frecuente/atrasado, resultado).
+  const fullToggle = e.target.closest("[data-toggle-full]");
+  if (fullToggle) {
+    const lottery = fullToggle.dataset.toggleFull;
+    if (upcomingFullExpanded.has(lottery)) {
+      upcomingFullExpanded.delete(lottery);
+    } else {
+      upcomingFullExpanded.add(lottery);
+    }
+    buildUpcomingSummary();
+    return;
+  }
 }
 
 // Si el usuario copia el resultado completo de la página de la lotería
@@ -1281,6 +1311,52 @@ function formatCountdown(diffMinutes) {
   const h = Math.floor(diffMinutes / 60);
   const m = diffMinutes % 60;
   return m === 0 ? `En ${h} h` : `En ${h} h ${m} min`;
+}
+
+// ============================================
+// ANÁLISIS COMPLETO DENTRO DE LA TARJETA (pestaña "Próxima")
+// Al tocar "Ver análisis completo" en una tarjeta, se muestra AQUÍ MISMO
+// todo lo que la app sabe sobre esa lotería, sin salir de la pestaña:
+// 1) Backtest (acierto real histórico vs. azar) — lo más importante,
+//    porque es lo único que dice si el ranking aporta algo real o no, así
+//    que va primero, antes que el ranking mismo.
+// 2) El bloque completo de la pestaña Análisis para la fecha de hoy
+//    (ranking, palés, decenas, espejos, rachas, ventana ±3 días, matriz,
+//    etc.) — se reutiliza buildLotteryResultBlock tal cual, así que nunca
+//    se calcula "distinto" a lo que se ve en Análisis.
+// 3) Tendencia reciente (últimos 60 sorteos) — reutiliza buildRecentTrendHtml.
+// Se cachea por lotería (upcomingFullAnalysisCache) porque estos cálculos
+// son más pesados que el resto de la tarjeta y no deben rehacerse en cada
+// re-render mientras la tarjeta sigue expandida.
+// ============================================
+function buildFullAnalysisForUpcoming(lottery, month, day) {
+  if (upcomingFullAnalysisCache[lottery]) return upcomingFullAnalysisCache[lottery];
+
+  const top = 10;
+  const backtestCount = 200; // runBacktestSeries ya recorta solo a lo disponible si hay menos
+  const backtest = runBacktestSeries(lottery, top, backtestCount);
+  const backtestHtml = buildBacktestResultHtml(backtest);
+
+  const analysisBlock = buildLotteryResultBlock(lottery, month, day, top);
+
+  const recentWindow = 60;
+  const recentDraws = getRecentDraws(lottery, recentWindow);
+  const recentHtml = `
+    <div class="lottery-result-sub">🕐 Tendencia reciente (últimos ${recentDraws.length} sorteos)</div>
+    ${buildRecentTrendHtml(lottery, recentWindow)}
+  `;
+
+  const html = `
+    <div class="up-full-analysis">
+      ${backtestHtml}
+      ${recentHtml}
+      <div class="lottery-result-sub">📖 Análisis completo del ${pad(day)}/${pad(month)} (todos los años)</div>
+      ${analysisBlock.html}
+    </div>
+  `;
+
+  upcomingFullAnalysisCache[lottery] = html;
+  return html;
 }
 
 function buildUpcomingSummary() {
@@ -1407,10 +1483,15 @@ function buildUpcomingSummary() {
         const rawHtml = r.raw ? `<span class="num num-sm">${r.raw.n}</span> <span class="small muted">(${r.raw.c}/${r.raw.total})</span>` : '<span class="small muted">—</span>';
         const overdueHtml = r.overdue ? `<span class="num num-sm cold">${r.overdue.n}</span> <span class="small muted">(${r.overdue.sorteosAtras} sorteos)</span>` : '<span class="small muted">—</span>';
         const resultHtml = buildTodayResultCell(r.lottery, r.todayRecord);
+        const isFullExpanded = upcomingFullExpanded.has(r.lottery);
+        // El análisis completo es pesado (ranking + backtest + tendencia), así
+        // que solo se calcula para la(s) lotería(s) que el usuario ya tocó, no
+        // para las ~11 tarjetas en cada render de buildUpcomingSummary().
+        const fullAnalysisHtml = isFullExpanded ? buildFullAnalysisForUpcoming(r.lottery, month, day) : "";
         return `
           <div class="up-card${isNext ? " next" : ""}">
             <div class="up-head">
-              <span class="up-name">${escapeHtml(r.lottery)}${isNext ? ' <span class="up-next-flag">▶ Próxima</span>' : ""}</span>
+              <span class="up-name up-name-tap" data-toggle-full="${escapeHtml(r.lottery)}" role="button" tabindex="0">${escapeHtml(r.lottery)}${isNext ? ' <span class="up-next-flag">▶ Próxima</span>' : ""}</span>
               <span class="up-time">${r.timeStr ? escapeHtml(r.timeStr) : "—"}</span>
             </div>
             <div class="up-row-line"><span class="up-tag">Top 3</span>${top3Html}</div>
@@ -1423,6 +1504,10 @@ function buildUpcomingSummary() {
               </div>
             </details>
             <div class="up-result">${resultHtml}</div>
+            <button type="button" class="secondary small-btn up-full-toggle" data-toggle-full="${escapeHtml(r.lottery)}">
+              ${isFullExpanded ? "▲ Ocultar análisis completo" : "🔎 Ver análisis completo"}
+            </button>
+            ${isFullExpanded ? `<div class="up-full-wrap">${fullAnalysisHtml}</div>` : ""}
           </div>
         `;
       }).join("")}
@@ -2665,6 +2750,7 @@ function importCSV() {
 
 function save() {
   localStorage.setItem(KEY, JSON.stringify(data));
+  upcomingFullAnalysisCache = {}; // los datos cambiaron: el análisis completo cacheado por lotería quedó desactualizado
   renderHistory();
   analyze();
 }
@@ -2780,6 +2866,16 @@ document.getElementById("lottery-chips")?.addEventListener("click", (e) => {
 // reemplaza el innerHTML en cada buildUpcomingSummary(), así que basta con
 // enganchar los listeners una sola vez aquí.
 document.getElementById("upcoming-results")?.addEventListener("click", handleUpcomingResultsClick);
+// Permite abrir/cerrar el análisis completo con teclado (Enter/Espacio) al
+// enfocar el nombre de la lotería, ya que ese elemento no es un <button>
+// nativo (lleva role="button" + tabindex para que sea accesible igual).
+document.getElementById("upcoming-results")?.addEventListener("keydown", (e) => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const nameTap = e.target.closest("[data-toggle-full]");
+  if (!nameTap) return;
+  e.preventDefault();
+  nameTap.click();
+});
 document.getElementById("upcoming-results")?.addEventListener("submit", handleUpcomingResultsSubmit);
 document.getElementById("upcoming-results")?.addEventListener("paste", handleUpcomingResultsPaste, true);
 
