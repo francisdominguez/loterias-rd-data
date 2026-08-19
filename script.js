@@ -2066,68 +2066,109 @@ function runSimulation(lottery, targetDateStr, top) {
   };
 }
 
-function buildSimulationResultHtml(sim) {
-  const hour = getScheduleFor(sim.lottery);
+// V11 · SIMULADOR POR DÍA/MES (reemplaza el simulador de una sola fecha con
+// año fijo, que solo dejaba probar UN año a la vez). Ahora se pide mes/día
+// —igual que Análisis— y se corre runSimulation() para CADA año del
+// histórico en que esa lotería tuvo sorteo justo ese día/mes. Cada prueba
+// individual sigue usando SOLO datos anteriores a su propia fecha (misma
+// regla que ya tenía runSimulation), y al final se agregan los aciertos de
+// todos los años igual que runBacktestSeries (mismo cálculo de línea base
+// "al azar"), más un desglose año por año para transparencia.
+function runSimulationByDayMonth(lottery, month, day, top) {
+  const testDates = [...new Set(data.filter(r => r.lottery === lottery).map(r => r.date))]
+    .filter(dateStr => { const { m, d } = splitDate(dateStr); return m === month && d === day; })
+    .sort();
+
+  const perYear = [];
+  testDates.forEach(targetDateStr => {
+    const sim = runSimulation(lottery, targetDateStr, top);
+    // Se descarta el año más antiguo (o los que no tengan ningún sorteo
+    // previo de ese mismo día/mes): no hay con qué construir un ranking.
+    if (sim.sampleSize === 0) return;
+    perYear.push(sim);
+  });
+
+  if (perYear.length === 0) {
+    return { lottery, month, day, top, yearsTested: 0, perYear: [] };
+  }
+
+  let totalActualNumbers = 0, totalNumberHits = 0, expectedNumberHitsRandom = 0;
+  let totalPaleCandidates = 0, totalPaleHits = 0, expectedPaleHitsRandom = 0;
+
+  perYear.forEach(sim => {
+    totalActualNumbers += sim.actualNumbers.length;
+    totalNumberHits += sim.numberHits.length;
+    expectedNumberHitsRandom += sim.topRanked.length * (sim.actualNumbers.length / 100);
+
+    const actualCombos = (sim.actualNumbers.length * (sim.actualNumbers.length - 1)) / 2;
+    totalPaleCandidates += sim.topPales.length;
+    totalPaleHits += sim.paleHits.length;
+    expectedPaleHitsRandom += sim.topPales.length * (actualCombos / 4950);
+  });
+
+  return {
+    lottery, month, day, top,
+    yearsTested: perYear.length,
+    perYear,
+    totalActualNumbers, totalNumberHits,
+    avgHitsPerDraw: totalNumberHits / perYear.length,
+    expectedAvgHitsPerDrawRandom: expectedNumberHitsRandom / perYear.length,
+    hitRatePct: totalActualNumbers ? (totalNumberHits / totalActualNumbers) * 100 : 0,
+    expectedHitRatePct: totalActualNumbers ? (expectedNumberHitsRandom / totalActualNumbers) * 100 : 0,
+    totalPaleHits, totalPaleCandidates,
+    avgPaleHitsPerDraw: totalPaleHits / perYear.length,
+    expectedAvgPaleHitsPerDrawRandom: expectedPaleHitsRandom / perYear.length,
+  };
+}
+
+function buildSimulationSeriesHtml(res) {
+  const hour = getScheduleFor(res.lottery);
+  const dateLabel = `${pad(res.day)}/${pad(res.month)}`;
   let html = `<section class="card lottery-result-block">
     <div class="lottery-result-header">
-      <h3>🧪 ${escapeHtml(sim.lottery)}${hour ? ` <span class="lottery-hour-tag">🕒 ${escapeHtml(hour)}</span>` : ""}</h3>
-      <span class="badge-count">${sim.sampleSize} sorteo${sim.sampleSize === 1 ? "" : "s"} usado${sim.sampleSize === 1 ? "" : "s"} · ${sim.yearsUsed.length} año${sim.yearsUsed.length === 1 ? "" : "s"} previo${sim.yearsUsed.length === 1 ? "" : "s"}</span>
-    </div>
-    <div class="hint">Simulando el ${pad(sim.d)}/${pad(sim.m)}/${sim.targetDateStr.substring(0, 4)}: el ranking y los palés de abajo se calcularon usando ÚNICAMENTE sorteos anteriores al ${sim.targetDateStr} (jamás la fecha simulada ni nada posterior), exactamente como si se hubiera generado el día antes del sorteo real.</div>`;
+      <h3>🧪 ${escapeHtml(res.lottery)}${hour ? ` <span class="lottery-hour-tag">🕒 ${escapeHtml(hour)}</span>` : ""}</h3>
+      <span class="badge-count">${res.yearsTested} año${res.yearsTested === 1 ? "" : "s"} probado${res.yearsTested === 1 ? "" : "s"} para el ${dateLabel}</span>
+    </div>`;
 
-  if (sim.sampleSize === 0) {
-    html += `<div class="empty">No hay sorteos anteriores al ${sim.targetDateStr} para esta lotería en ese día/mes — no se puede generar un ranking de backtest sin al menos algún año previo cargado.</div></section>`;
+  if (res.yearsTested === 0) {
+    html += `<div class="empty">No hay suficientes años previos cargados para simular el ${dateLabel} de esta lotería — hace falta al menos un año anterior a otro con sorteo en esa misma fecha.</div></section>`;
     return html;
   }
 
-  const hitSet = new Set(sim.numberHits.map(x => x.n));
-  html += `<div class="lottery-result-sub">🔥 Ranking generado (top ${sim.top}, solo con datos previos)</div>
+  html += `<div class="hint">Para CADA año en que esta lotería tuvo sorteo el ${dateLabel}, se recalculó el ranking top ${res.top} usando SOLO datos anteriores a esa fecha exacta (nunca la fecha simulada ni nada posterior) y se comparó contra el resultado real de ese año. Abajo, el promedio de los ${res.yearsTested} años probados y el detalle de cada uno.</div>`;
+
+  const diff = res.avgHitsPerDraw - res.expectedAvgHitsPerDrawRandom;
+  const diffLabel = diff > 0.05
+    ? `+${diff.toFixed(2)} por encima del azar`
+    : diff < -0.05
+      ? `${diff.toFixed(2)} por debajo del azar`
+      : "prácticamente igual al azar";
+
+  html += `
+    <div class="insights-grid">
+      <div class="insight-card"><strong>Números acertados</strong>${res.totalNumberHits} de ${res.totalActualNumbers} (${res.hitRatePct.toFixed(1)}%)</div>
+      <div class="insight-card"><strong>Promedio por año (top ${res.top})</strong>${res.avgHitsPerDraw.toFixed(2)} números acertados</div>
+      <div class="insight-card"><strong>Esperado si fuera al azar</strong>${res.expectedAvgHitsPerDrawRandom.toFixed(2)} números por año (${res.expectedHitRatePct.toFixed(1)}%)</div>
+      <div class="insight-card"><strong>Diferencia contra el azar</strong>${diffLabel}</div>
+      <div class="insight-card"><strong>Palés acertados</strong>${res.totalPaleHits} en ${res.yearsTested} año${res.yearsTested === 1 ? "" : "s"} (prom. ${res.avgPaleHitsPerDraw.toFixed(2)}/año)</div>
+      <div class="insight-card"><strong>Palés esperados al azar</strong>${res.expectedAvgPaleHitsPerDrawRandom.toFixed(2)}/año</div>
+    </div>`;
+
+  html += `<div class="lottery-result-sub">📅 Desglose año por año</div>
     <table>
-      <tr><th>#</th><th>Número</th><th>Puntaje</th><th>${sim.actualNumbers ? "¿Salió?" : ""}</th></tr>
-      ${sim.topRanked.map((x, i) => `
+      <tr><th>Año</th><th>Sorteos previos usados</th><th>Resultado real</th><th>Acertados (top ${res.top})</th><th>Palé acertado</th></tr>
+      ${res.perYear.map(sim => `
         <tr>
-          <td><strong>${i + 1}</strong></td>
-          <td><span class="num ${sim.actualNumbers && hitSet.has(x.n) ? "hot" : ""}">${x.n}</span></td>
-          <td><span class="stars">${generateStars(x.score, 100)}</span> <span class="small muted">${x.score.toFixed(1)}</span></td>
-          <td>${sim.actualNumbers ? (hitSet.has(x.n) ? '<span class="success">✓ acertado</span>' : '<span class="small muted">—</span>') : ""}</td>
+          <td><strong>${sim.targetDateStr.substring(0, 4)}</strong></td>
+          <td>${sim.sampleSize}</td>
+          <td>${sim.actualNumbers.map(n => `<span class="num">${escapeHtml(n)}</span>`).join("")}</td>
+          <td>${sim.numberHits.length} de ${sim.actualNumbers.length}${sim.numberHits.length ? `: ${sim.numberHits.map(x => escapeHtml(x.n)).join(", ")}` : ""}</td>
+          <td>${sim.paleHits.length ? `✓ ${sim.paleHits.map(([k]) => escapeHtml(k)).join(", ")}` : '<span class="small muted">—</span>'}</td>
         </tr>
       `).join("")}
     </table>`;
 
-  html += `<div class="lottery-result-sub">🎯 Palés candidatos (top 10, solo con datos previos)</div>`;
-  if (sim.topPales.length === 0) {
-    html += '<div class="empty">No hay suficientes palés en el histórico previo a esta fecha.</div>';
-  } else {
-    const paleHitKeys = new Set(sim.paleHits.map(([key]) => key));
-    html += `
-      <table>
-        <tr><th>#</th><th>Palé</th><th>Apariciones previas</th><th>${sim.actualNumbers ? "¿Salió?" : ""}</th></tr>
-        ${sim.topPales.map(([key, count], i) => `
-          <tr>
-            <td><strong>${i + 1}</strong></td>
-            <td><span class="num ${sim.actualNumbers && paleHitKeys.has(key) ? "hot" : ""}">${key}</span></td>
-            <td><strong>${count}</strong></td>
-            <td>${sim.actualNumbers ? (paleHitKeys.has(key) ? '<span class="success">✓ acertado</span>' : '<span class="small muted">—</span>') : ""}</td>
-          </tr>
-        `).join("")}
-      </table>`;
-  }
-
-  if (!sim.actualNumbers) {
-    html += `<div class="warning">ℹ️ Todavía no tienes cargado el resultado real del ${sim.targetDateStr} para esta lotería, así que arriba solo se ve la predicción generada por el backtest. Importa ese resultado (CSV) o actualiza los datos remotos y vuelve a simular para ver la comparación número por número.</div>`;
-  } else {
-    const hitCount = sim.numberHits.length;
-    const paleHitCount = sim.paleHits.length;
-    html += `
-      <div class="lottery-result-sub">📋 Comparación contra el resultado real</div>
-      <div class="insights-grid">
-        <div class="insight-card"><strong>Resultado real</strong>${sim.actualNumbers.map(n => `<span class="num">${escapeHtml(n)}</span>`).join(" ")}</div>
-        <div class="insight-card"><strong>Números acertados en el top ${sim.top}</strong>${hitCount} de ${sim.actualNumbers.length}${sim.numberMisses.length ? ` · no estaban en el top: ${sim.numberMisses.map(n => escapeHtml(n)).join(", ")}` : ""}</div>
-        <div class="insight-card"><strong>Palés acertados en el top 10</strong>${paleHitCount} de ${sim.topPales.length ? "los candidatos" : "0 candidatos"}</div>
-      </div>
-      <div class="warning">⚠️ Un backtest puntual no demuestra que el método funcione ni prediga nada: es solo la comparación de UN sorteo. Para saber si esto aporta algo real hace falta correr la simulación sobre muchas fechas distintas y mirar el acierto promedio — ver la nota de "backtesting" en los comentarios del código como próximo paso pendiente.</div>
-    `;
-  }
+  html += `<div class="warning">⚠️ Sigue siendo frecuencia pasada, no predicción: describe cómo le habría ido a este método en los años ya ocurridos para el ${dateLabel}, no cambia las probabilidades matemáticas del próximo sorteo.</div>`;
 
   html += "</section>";
   return html;
@@ -2135,7 +2176,8 @@ function buildSimulationResultHtml(sim) {
 
 function runSimulationFromUI() {
   const lottery = document.getElementById("sim-lottery")?.value || "";
-  const targetDateStr = document.getElementById("sim-date")?.value || "";
+  const month = +(document.getElementById("sim-month")?.value || 0);
+  const day = +(document.getElementById("sim-day")?.value || 0);
   const top = +(document.getElementById("sim-top")?.value || 10);
   const resultsEl = document.getElementById("sim-results");
   if (!resultsEl) return;
@@ -2144,13 +2186,13 @@ function runSimulationFromUI() {
     resultsEl.innerHTML = '<div class="empty">Elige una lotería para simular.</div>';
     return;
   }
-  if (!validateDate(targetDateStr)) {
-    resultsEl.innerHTML = '<div class="empty">Elige una fecha válida para simular.</div>';
+  if (!month || month < 1 || month > 12 || !day || day < 1 || day > 31) {
+    resultsEl.innerHTML = '<div class="empty">Elige un mes y un día válidos para simular.</div>';
     return;
   }
 
-  const sim = runSimulation(lottery, targetDateStr, top);
-  resultsEl.innerHTML = buildSimulationResultHtml(sim);
+  const res = runSimulationByDayMonth(lottery, month, day, top);
+  resultsEl.innerHTML = buildSimulationSeriesHtml(res);
 }
 
 function populateSimLotterySelect() {

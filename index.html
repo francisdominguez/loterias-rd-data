@@ -103,11 +103,12 @@
   <section class="card">
     <div class="card-head">
       <h2>🧪 Simulador de jugadas</h2>
-      <p class="card-sub">Elige una lotería y una fecha: se genera el ranking y los palés candidatos usando <b>solo</b> sorteos anteriores a esa fecha — nunca la fecha simulada ni nada posterior. Si ya tienes el resultado real cargado, se compara automáticamente.</p>
+      <p class="card-sub">Elige lotería, mes y día: se corre el backtest para <b>cada año</b> en que hubo sorteo exactamente ese día/mes, usando siempre solo datos anteriores a cada fecha — nunca la fecha simulada ni nada posterior — y se compara contra el resultado real de cada año.</p>
     </div>
     <div class="grid">
       <div><label>Lotería</label><select id="sim-lottery" class="single-lottery-select"></select></div>
-      <div><label>Fecha a simular</label><input id="sim-date" type="date"></div>
+      <div><label>Mes</label><input id="sim-month" type="number" min="1" max="12"></div>
+      <div><label>Día</label><input id="sim-day" type="number" min="1" max="31"></div>
       <div><label>Top</label><select id="sim-top"><option value="10">10</option><option value="5">5</option><option value="15">15</option><option value="20">20</option></select></div>
     </div>
     <div class="actions"><button onclick="runSimulationFromUI()">🧪 Simular</button></div>
