@@ -808,41 +808,125 @@ details summary::-webkit-details-marker {
 }
 
 /* ============================================
-   REGISTRO DE RESULTADOS DEL DÍA (pestaña Próxima)
-   Formulario compacto por lotería para ir capturando cada número apenas se
-   publica el sorteo. .table-scroll evita que la columna extra rompa el
-   layout en móvil (la tabla de "Próxima" ya tenía 6 columnas).
+   PESTAÑA "PRÓXIMA" — TARJETAS COMPACTAS
+   Reemplaza la tabla ancha (7 columnas) por tarjetas apiladas: 1 columna en
+   móvil, 2 en pantallas ≥720px. Los datos secundarios (frecuente/atrasado)
+   van en un <details> plegado para no ocupar espacio de entrada.
    ============================================ */
-.table-scroll {
-  overflow-x: auto;
+.up-list {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 8px;
+}
+@media (min-width: 720px) {
+  .up-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+.up-card {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: #fff;
+}
+.up-card.next {
+  background: #f0fdfa;
+  border-color: #99f6e4;
+}
+.up-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+.up-name {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--ink);
+}
+.up-time {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.up-row-line {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+  font-size: 12px;
+  margin-top: 3px;
+}
+.up-tag {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .02em;
+  color: #7b9088;
+  min-width: 38px;
+}
+.num-sm {
+  min-width: 26px;
+  height: 26px;
+  padding: 0 4px;
+  font-size: 11px;
+  margin: 1px;
+}
+.up-more {
+  margin-top: 4px;
+}
+.up-more summary {
+  font-size: 11px;
+  color: #7b9088;
+  cursor: pointer;
+  list-style: none;
+}
+.up-more summary::-webkit-details-marker {
+  display: none;
+}
+.up-more summary::before {
+  content: '▸ ';
+}
+.up-more[open] summary::before {
+  content: '▾ ';
+}
+.up-more-body {
+  margin-top: 3px;
+}
+.up-result {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed var(--line);
 }
 .today-result-form {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  min-width: 150px;
+  gap: 4px;
 }
 .today-result-inputs {
   display: flex;
-  gap: 4px;
+  gap: 3px;
   flex-wrap: wrap;
 }
 .result-num-input {
-  width: 36px;
-  padding: 6px 0;
+  width: 28px;
+  padding: 4px 0;
   text-align: center;
   font-family: var(--font-mono);
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
 }
 .today-result-actions {
   display: flex;
-  gap: 6px;
+  gap: 4px;
 }
 .small-btn {
   width: auto;
-  padding: 6px 10px;
-  font-size: 12px;
+  padding: 4px 8px;
+  font-size: 11px;
 }
 .today-result-error {
   margin: 0;
@@ -851,7 +935,7 @@ details summary::-webkit-details-marker {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
+  gap: 4px;
 }
 
 /* ---- Responsive ---- */

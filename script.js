@@ -1297,34 +1297,37 @@ function buildUpcomingSummary() {
 
   container.innerHTML = `
     <div class="hint" style="margin-bottom:8px">🕐 Hora de tu dispositivo: <b>${escapeHtml(nowLabel)}</b> · fecha usada: ${pad(day)}/${pad(month)}</div>
-    <div class="table-scroll">
-    <table>
-      <tr><th>Hora</th><th>Lotería</th><th>Top 3 (fecha exacta)</th><th>Palé</th><th>Más frecuente (histórico)</th><th>Más atrasado</th><th>Resultado de hoy</th></tr>
+    <div class="up-list">
       ${rows.map((r, i) => {
         const isNext = i === nextIdx;
         const top3Html = r.top3.length
-          ? r.top3.map(n => `<span class="num${isNext ? " recommended" : ""}">${n}</span>`).join(" ")
-          : '<span class="small muted">Sin sorteo exacto hoy en el histórico</span>';
-        const paleHtml = r.paleTop ? `<span class="num">${r.paleTop}</span>` : '<span class="small muted">—</span>';
-        const rawHtml = r.raw ? `<span class="num">${r.raw.n}</span> <span class="small muted">(${r.raw.c}/${r.raw.total})</span>` : '<span class="small muted">—</span>';
-        const overdueHtml = r.overdue ? `<span class="num cold">${r.overdue.n}</span> <span class="small muted">(${r.overdue.sorteosAtras} sorteos)</span>` : '<span class="small muted">—</span>';
+          ? r.top3.map(n => `<span class="num num-sm${isNext ? " recommended" : ""}">${n}</span>`).join("")
+          : '<span class="small muted">Sin sorteo exacto hoy</span>';
+        const paleHtml = r.paleTop ? `<span class="num num-sm">${r.paleTop}</span>` : '<span class="small muted">—</span>';
+        const rawHtml = r.raw ? `<span class="num num-sm">${r.raw.n}</span> <span class="small muted">(${r.raw.c}/${r.raw.total})</span>` : '<span class="small muted">—</span>';
+        const overdueHtml = r.overdue ? `<span class="num num-sm cold">${r.overdue.n}</span> <span class="small muted">(${r.overdue.sorteosAtras} sorteos)</span>` : '<span class="small muted">—</span>';
         const resultHtml = buildTodayResultCell(r.lottery, r.todayRecord);
         return `
-          <tr${isNext ? ' style="background:#f0fdfa"' : ""}>
-            <td>${r.timeStr ? escapeHtml(r.timeStr) : '<span class="small muted">—</span>'}${isNext ? ' <span class="lottery-hour-tag">▶ Próxima</span>' : ""}</td>
-            <td><strong>${escapeHtml(r.lottery)}</strong></td>
-            <td>${top3Html}</td>
-            <td>${paleHtml}</td>
-            <td>${rawHtml}</td>
-            <td>${overdueHtml}</td>
-            <td>${resultHtml}</td>
-          </tr>
+          <div class="up-card${isNext ? " next" : ""}">
+            <div class="up-head">
+              <span class="up-name">${escapeHtml(r.lottery)}</span>
+              <span class="up-time">${r.timeStr ? escapeHtml(r.timeStr) : "—"}${isNext ? ' <span class="lottery-hour-tag">▶</span>' : ""}</span>
+            </div>
+            <div class="up-row-line"><span class="up-tag">Top 3</span>${top3Html}</div>
+            <div class="up-row-line"><span class="up-tag">Palé</span>${paleHtml}</div>
+            <details class="up-more">
+              <summary>Más frecuente / atrasado</summary>
+              <div class="up-more-body">
+                <div class="up-row-line"><span class="up-tag">Frecuente</span>${rawHtml}</div>
+                <div class="up-row-line"><span class="up-tag">Atrasado</span>${overdueHtml}</div>
+              </div>
+            </details>
+            <div class="up-result">${resultHtml}</div>
+          </div>
         `;
       }).join("")}
-    </table>
     </div>
-    <div class="hint" style="margin-top:8px">"Fecha exacta" = puntaje ponderado solo para el ${pad(day)}/${pad(month)} a través de los años. "Histórico" y "Atrasado" = TODO el historial de la lotería, sin filtrar por fecha. Los tres son frecuencia pasada, no predicción.</div>
-    <div class="hint">📝 En "Resultado de hoy" puedes ir escribiendo cada número apenas la lotería correspondiente publique su sorteo — se guarda al histórico y entra en el análisis de inmediato.</div>
+    <div class="hint" style="margin-top:8px">"Top 3/Palé" = puntaje ponderado del ${pad(day)}/${pad(month)} a través de los años. "Frecuente/Atrasado" = todo el historial, sin filtrar por fecha. Frecuencia pasada, no predicción.</div>
   `;
 }
 
