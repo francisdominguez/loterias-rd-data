@@ -460,6 +460,8 @@ function updateDataSourceBadge() {
   headerMeta.textContent = badgeText + " • Registros: " + data.length + " • Loterías: " + allLotteries.length;
 
   document.getElementById("total-records").textContent = data.length;
+  const totalBadge = document.getElementById("total-records-badge");
+  if (totalBadge) totalBadge.textContent = data.length;
 }
 
 function formatTimestamp(iso) {
@@ -2154,6 +2156,8 @@ function setStatus(message, isSuccess = false) {
 function renderHistory() {
   const rows = [...data].sort((a, b) => compareDateStrings(a.date, b.date));
   document.getElementById("total-records").textContent = data.length;
+  const totalBadgeH = document.getElementById("total-records-badge");
+  if (totalBadgeH) totalBadgeH.textContent = data.length;
   document.getElementById("history").innerHTML =
     rows.length > 0
       ? `<table><tr><th>Fecha</th><th>Lotería</th><th>Resultado</th></tr>${rows
@@ -2167,14 +2171,31 @@ function renderHistory() {
       : '<div class="empty">Sin registros.</div>';
 }
 
+// ============================================
+// NAVEGACIÓN POR PESTAÑAS
+// Reemplaza el modelo anterior de "todo apilado en una sola página larga +
+// botón de engranaje flotante" por pestañas reales: solo un panel visible
+// a la vez, para que la app no se sienta abrumadora. toggleHistory() y
+// toggleSettings() se conservan como alias (por compatibilidad con
+// cualquier llamada existente) y ahora simplemente cambian de pestaña.
+// ============================================
+function switchTab(name) {
+  document.querySelectorAll(".tab-panel").forEach(panel => {
+    panel.classList.toggle("active", panel.dataset.tabPanel === name);
+  });
+  document.querySelectorAll(".tab-btn").forEach(btn => {
+    btn.classList.toggle("active", btn.dataset.tab === name);
+  });
+  const active = document.querySelector(`.tab-panel[data-tab-panel="${name}"]`);
+  if (active) active.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
 function toggleHistory() {
-  const section = document.querySelector(".history-section");
-  section.classList.toggle("visible");
+  switchTab("data");
 }
 
 function toggleSettings() {
-  const section = document.querySelector(".settings-section");
-  section.classList.toggle("visible");
+  switchTab("settings");
 }
 
 // ============================================

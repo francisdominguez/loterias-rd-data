@@ -1,43 +1,172 @@
+/* ============================================
+   TOKENS
+   Paleta: teal profundo de marca + fondo verde-grisáceo cálido (no blanco
+   puro, no beige genérico) + oro para "caliente"/acento numérico. Los
+   colores semánticos (.hot=rojo, .cold=cian, .recommended=morado) se
+   mantienen tal cual porque ya cargan significado funcional en toda la app.
+   Tipografía: Sora para títulos/cifras grandes (geométrica, con carácter),
+   Inter para texto de lectura, JetBrains Mono para los dígitos de cada
+   número/bola — refuerza que el contenido central son NÚMEROS.
+   ============================================ */
+:root {
+  --ink: #0c1a1c;
+  --ink-soft: #45575a;
+  --paper: #eef4f2;
+  --surface: #ffffff;
+  --line: #dbe6e2;
+  --brand: #0f6e63;
+  --brand-2: #14b8a6;
+  --brand-deep: #0a4a43;
+  --gold: #c98a12;
+  --gold-soft: #fef3d9;
+  --font-display: "Sora", system-ui, sans-serif;
+  --font-body: "Inter", system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+}
+
 * {
   box-sizing: border-box;
 }
 body {
   margin: 0;
-  background: #fff;
-  color: #17202a;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
 }
 
+/* ============================================
+   HEADER + PESTAÑAS
+   ============================================ */
 header {
-  background: linear-gradient(135deg, #0f766e 0%, #14b8a6 100%);
+  background: linear-gradient(155deg, var(--brand-deep) 0%, var(--brand) 55%, var(--brand-2) 100%);
   color: #fff;
-  padding: 20px;
+  padding: 18px 20px 0;
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  box-shadow: 0 6px 20px #0a4a4326;
+}
+.header-inner {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand-mark {
+  font-size: 30px;
+  line-height: 1;
+  filter: drop-shadow(0 2px 4px #0004);
 }
 header h1 {
-  margin: 0 0 4px;
-  font-size: 24px;
+  margin: 0 0 2px;
+  font-family: var(--font-display);
+  font-weight: 800;
+  font-size: 21px;
+  letter-spacing: -.01em;
 }
 header p {
   margin: 0;
-  color: #cbd5e1;
+  color: #d9f2ee;
+  font-size: 13px;
 }
 header .meta {
-  font-size: 12px;
-  color: #94a3b8;
-  margin-top: 8px;
+  font-size: 11.5px;
+  color: #cdeae5;
+  padding-top: 4px;
+  text-align: right;
+}
+
+.tabs {
+  max-width: 1200px;
+  margin: 14px auto 0;
+  display: flex;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.tabs::-webkit-scrollbar {
+  display: none;
+}
+.tab-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: #cdeae5;
+  font: inherit;
+  font-family: var(--font-body);
+  font-weight: 600;
+  font-size: 13.5px;
+  padding: 10px 14px;
+  border-radius: 10px 10px 0 0;
+  cursor: pointer;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background .15s, color .15s;
+}
+.tab-btn:hover {
+  background: #ffffff14;
+  color: #fff;
+}
+.tab-btn.active {
+  background: var(--paper);
+  color: var(--brand-deep);
+}
+
+.tab-panel {
+  display: none;
+}
+.tab-panel.active {
+  display: block;
+  animation: fadeUp .25s ease;
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
 }
 
 main {
   max-width: 1200px;
   margin: auto;
-  padding: 15px;
+  padding: 18px 15px 40px;
 }
+
+/* ============================================
+   TARJETAS
+   ============================================ */
 .card {
-  background: #fff;
-  border-radius: 14px;
-  padding: 16px;
-  margin-bottom: 15px;
-  box-shadow: 0 2px 10px #0001;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 18px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 2px #0c1a1c08, 0 8px 20px #0c1a1c06;
+}
+.card-head {
+  margin-bottom: 4px;
+}
+.card h2 {
+  font-family: var(--font-display);
+  font-weight: 700;
+  font-size: 18px;
+  margin: 0 0 4px;
+  color: var(--ink);
+}
+.card-sub {
+  margin: 0 0 6px;
+  font-size: 13px;
+  color: var(--ink-soft);
+  line-height: 1.5;
 }
 
 .grid {
@@ -46,22 +175,29 @@ main {
   gap: 10px;
 }
 label {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
   display: block;
   margin-bottom: 5px;
-  color: #475569;
+  color: var(--ink-soft);
+  font-family: var(--font-body);
 }
 
 input, select, button {
   width: 100%;
   padding: 10px;
-  border: 1px solid #d1d5db;
-  border-radius: 9px;
+  border: 1px solid #cfd9d6;
+  border-radius: 10px;
   font: inherit;
+  color: var(--ink);
+  background: #fff;
+}
+input:focus, select:focus, button:focus-visible {
+  outline: 2px solid var(--brand-2);
+  outline-offset: 1px;
 }
 button {
-  background: #0f766e;
+  background: var(--brand);
   color: #fff;
   border: 0;
   font-weight: 700;
@@ -69,7 +205,7 @@ button {
   transition: all .2s;
 }
 button:hover {
-  background: #0d6b63;
+  background: var(--brand-deep);
   transform: translateY(-1px);
   box-shadow: 0 4px 12px #0002;
 }
@@ -92,18 +228,15 @@ button:disabled {
   width: auto;
 }
 .secondary {
-  background: #e5e7eb;
-  color: #111827;
+  background: #e7edea;
+  color: #16302c;
 }
 .secondary:hover {
-  background: #d1d5db;
+  background: #d7e2dd;
 }
 .danger {
   background: #b91c1c;
 }
-/* BUG corregido: el hover original (#a16161) rompía el patrón "oscurecer un
-   poco el mismo tono" que usan .secondary y el botón base; además el matiz
-   marrón no correspondía al rojo de .danger. Ahora oscurece el mismo rojo. */
 .danger:hover {
   background: #991b1b;
 }
@@ -112,14 +245,14 @@ button:disabled {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  color: #64748b;
+  color: var(--ink-soft);
   font-size: 13px;
 }
 .spinner {
   width: 14px;
   height: 14px;
   border: 2px solid #e5e7eb;
-  border-top-color: #111827;
+  border-top-color: var(--brand);
   border-radius: 50%;
   animation: spin .6s linear infinite;
 }
@@ -136,71 +269,94 @@ table {
 }
 th, td {
   padding: 10px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--line);
   text-align: left;
 }
 th {
-  background: #f8fafc;
+  background: #f4f8f6;
   font-weight: 700;
-  color: #334155;
-  font-size: 13px;
+  color: #335049;
+  font-size: 12.5px;
+  text-transform: uppercase;
+  letter-spacing: .02em;
 }
 
+/* ============================================
+   NÚMEROS COMO "BOLAS DE LOTERÍA" (elemento de firma)
+   Chip circular con relieve sutil y dígitos en monoespaciada, para que el
+   dato central de la app (el número) se lea de inmediato como una bola de
+   lotería real, no como una etiqueta de UI genérica.
+   ============================================ */
 .num {
-  display: inline-block;
-  padding: 5px 10px;
-  border-radius: 6px;
-  background: #eef2ff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 32% 28%, #ffffff, #e4efeb 60%, #cfe0da 100%);
+  color: var(--brand-deep);
+  font-family: var(--font-mono);
   font-weight: 800;
-  font-size: 13px;
+  font-size: 13.5px;
   margin: 2px;
   position: relative;
+  border: 1px solid #c8d8d2;
+  box-shadow: inset 0 1px 1px #ffffffcc, 0 1px 2px #0c1a1c1f;
 }
 .num.hot {
-  background: linear-gradient(135deg, #fecaca, #fca5a5);
-  color: #991b1b;
+  background: radial-gradient(circle at 32% 28%, #fff, #fecaca 55%, #f78787 100%);
+  color: #7f1d1d;
+  border-color: #f3a5a5;
 }
 .num.cold {
-  background: linear-gradient(135deg, #cffafe, #a5f3fc);
-  color: #164e63;
+  background: radial-gradient(circle at 32% 28%, #fff, #cffafe 55%, #7fe3ee 100%);
+  color: #0e4f5c;
+  border-color: #8fe0ea;
 }
 .num.recommended {
-  background: linear-gradient(135deg, #e9d5ff, #d8b4fe);
-  color: #581c87;
+  background: radial-gradient(circle at 32% 28%, #fff, #e9d5ff 55%, #c084fc 100%);
+  color: #4c1d75;
+  border-color: #d3aefb;
 }
 .hot::before {
   content: '🔥';
   margin-right: 4px;
+  font-size: 11px;
 }
 .cold::before {
   content: '❄️';
   margin-right: 4px;
+  font-size: 11px;
 }
 .recommended::before {
   content: '✨';
   margin-right: 4px;
+  font-size: 11px;
 }
 
 .stars {
   letter-spacing: 2px;
   font-size: 18px;
-  color: #fbbf24;
+  color: var(--gold);
 }
 
 .stat {
+  font-family: var(--font-display);
   font-size: 28px;
   font-weight: 800;
-  color: #0f172a;
+  color: var(--ink);
 }
 .stat-label {
-  font-size: 13px;
-  color: #64748b;
+  font-size: 12.5px;
+  color: var(--ink-soft);
   margin-top: 3px;
 }
 
 .muted {
   font-size: 13px;
-  color: #64748b;
+  color: var(--ink-soft);
 }
 .warning {
   padding: 12px;
@@ -214,7 +370,7 @@ th {
 .empty {
   padding: 18px;
   text-align: center;
-  color: #64748b;
+  color: var(--ink-soft);
 }
 .good {
   background: #ecfdf5;
@@ -245,7 +401,7 @@ th {
 .progress-bar {
   flex: 1;
   height: 20px;
-  background: #f1f5f9;
+  background: #eef3f1;
   border-radius: 4px;
   overflow: hidden;
   position: relative;
@@ -265,12 +421,13 @@ th {
   background: linear-gradient(90deg, #f97316, #ef4444);
 }
 .progress-fill.bar-normal {
-  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  background: linear-gradient(90deg, var(--brand), var(--brand-2));
 }
 .frequency-count {
   min-width: 35px;
   text-align: right;
   font-weight: 700;
+  font-family: var(--font-mono);
 }
 
 .data-status {
@@ -297,8 +454,8 @@ th {
 .lottery-selector {
   max-height: 250px;
   overflow-y: auto;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
   background: #fff;
 }
 .lottery-option {
@@ -326,7 +483,7 @@ th {
   color: #94a3b8;
   padding: 6px 12px;
   background: #f8fafc;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--line);
   margin: 0;
 }
 
@@ -337,50 +494,25 @@ th {
   margin-top: 12px;
 }
 .insight-card {
-  background: linear-gradient(135deg, #f8fafc, #f1f5f9);
-  border: 1px solid #e5e7eb;
-  border-radius: 8px;
+  background: linear-gradient(135deg, #f6faf8, #eef4f2);
+  border: 1px solid var(--line);
+  border-radius: 10px;
   padding: 12px;
   font-size: 12px;
 }
 .insight-card strong {
   display: block;
-  color: #0f172a;
+  color: var(--ink);
   margin-bottom: 4px;
+  font-family: var(--font-display);
 }
-
-.history-section {
-  display: none;
-}
-.history-section.visible {
-  display: block;
-}
-.settings-section {
-  display: none;
-}
-.settings-section.visible {
-  display: block;
-}
-
-.settings-btn {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  background: #0f766e;
-  color: #fff;
-  border: none;
-  font-size: 24px;
-  cursor: pointer;
-  box-shadow: 0 2px 8px #0003;
-  z-index: 999;
+.insight-card div + div {
+  margin-top: 3px;
 }
 
 .hint {
-  font-size: 11px;
-  color: #94a3b8;
+  font-size: 11.5px;
+  color: #7b9088;
   margin-top: 4px;
 }
 
@@ -392,7 +524,8 @@ th {
   border-radius: 7px;
   font-size: 13px;
   font-weight: 600;
-  margin-top: 10px;
+  margin: 10px auto 0;
+  max-width: 1200px;
 }
 .sync-banner.show {
   display: flex;
@@ -420,9 +553,9 @@ th {
   margin-top: 6px;
 }
 .rec-chip {
-  background: linear-gradient(135deg, #fde68a, #fbbf24);
-  color: #78350f;
-  border-radius: 10px;
+  background: linear-gradient(135deg, var(--gold-soft), #f7d67f);
+  color: #6a4a08;
+  border-radius: 12px;
   padding: 8px 12px;
   font-size: 12px;
   min-width: 90px;
@@ -430,8 +563,9 @@ th {
   box-shadow: 0 2px 6px #0002;
 }
 .rec-chip .big {
+  font-family: var(--font-mono);
   font-size: 20px;
-  font-weight: 900;
+  font-weight: 800;
   display: block;
 }
 .rec-chip .sub {
@@ -453,7 +587,7 @@ th {
   align-items: center;
   gap: 6px;
   background: #ccfbf1;
-  color: #0f766e;
+  color: var(--brand-deep);
   border: 1px solid #99f6e4;
   border-radius: 999px;
   padding: 5px 6px 5px 12px;
@@ -465,7 +599,7 @@ th {
   padding: 0;
   border: 0;
   background: transparent;
-  color: #0f766e;
+  color: var(--brand-deep);
   font-weight: 900;
   font-size: 14px;
   line-height: 1;
@@ -492,8 +626,8 @@ th {
   align-items: center;
   justify-content: space-between;
   background: #fff;
-  color: #17202a;
-  border: 1px solid #d1d5db;
+  color: var(--ink);
+  border: 1px solid #cfd9d6;
   text-align: left;
   font-weight: 600;
 }
@@ -517,13 +651,24 @@ th {
   left: 0;
   right: 0;
   background: #fff;
-  border: 1px solid #d1d5db;
-  border-radius: 10px;
+  border: 1px solid #cfd9d6;
+  border-radius: 12px;
   padding: 10px;
   box-shadow: 0 10px 30px #0002;
 }
 .lottery-dropdown.open .lottery-dropdown-panel {
   display: block;
+}
+
+.badge-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 3px 10px;
+  margin-left: 6px;
+  vertical-align: middle;
 }
 
 /* ---- Resultados por lotería ---- */
@@ -541,13 +686,14 @@ th {
 }
 .lottery-result-header h3 {
   margin: 0;
-  font-size: 17px;
-  color: #0f766e;
+  font-family: var(--font-display);
+  font-size: 16px;
+  color: var(--brand-deep);
 }
 .lottery-result-header .badge-count {
   font-size: 12px;
   font-weight: 700;
-  color: #64748b;
+  color: var(--ink-soft);
   background: #f1f5f9;
   border-radius: 999px;
   padding: 3px 10px;
@@ -555,7 +701,7 @@ th {
 .lottery-result-sub {
   font-size: 13px;
   font-weight: 700;
-  color: #334155;
+  color: #2c4640;
   margin: 14px 0 6px;
 }
 
@@ -579,60 +725,15 @@ th {
 .lottery-hour-tag {
   font-size: 12px;
   font-weight: 700;
-  color: #0f766e;
+  color: var(--brand-deep);
   background: #ccfbf1;
   border-radius: 999px;
   padding: 2px 10px;
   vertical-align: middle;
 }
 
-/* ---- V4/V5: paneles nuevos (comparación, confianza, terminaciones, matriz) ---- */
-.insight-card div + div {
-  margin-top: 3px;
-}
 details summary::-webkit-details-marker {
   display: none;
-}
-
-/* ---- Acordeones de paneles secundarios ---- */
-.acc {
-  border: 1px solid #e5e7eb;
-  border-radius: 9px;
-  margin-top: 8px;
-  background: #fff;
-  overflow: hidden;
-}
-.acc-summary {
-  list-style: none;
-  cursor: pointer;
-  padding: 10px 12px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #334155;
-  background: #f8fafc;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  user-select: none;
-}
-.acc-summary::-webkit-details-marker {
-  display: none;
-}
-.acc-summary::after {
-  content: '▾';
-  color: #94a3b8;
-  transition: transform .15s;
-  margin-left: 8px;
-}
-.acc[open] > .acc-summary::after {
-  transform: rotate(180deg);
-}
-.acc-summary:hover {
-  background: #f1f5f9;
-}
-.acc-body {
-  padding: 12px;
-  border-top: 1px solid #e5e7eb;
 }
 
 /* ---- Editor de horarios (Configuración) ---- */
@@ -651,4 +752,75 @@ details summary::-webkit-details-marker {
 }
 .schedule-row input {
   padding: 6px 8px;
+}
+
+/* ============================================
+   ACORDEONES DE PANELES SECUNDARIOS
+   ============================================ */
+.acc {
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  margin-top: 8px;
+  background: #fff;
+  overflow: hidden;
+}
+.acc-summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #2c4640;
+  background: #f4f8f6;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  user-select: none;
+}
+.acc-summary::-webkit-details-marker {
+  display: none;
+}
+.acc-summary::after {
+  content: '▾';
+  color: #8aa39c;
+  transition: transform .15s;
+  margin-left: 8px;
+}
+.acc[open] > .acc-summary::after {
+  transform: rotate(180deg);
+}
+.acc-summary:hover {
+  background: #eaf1ee;
+}
+.acc-body {
+  padding: 12px;
+  border-top: 1px solid var(--line);
+}
+.acc-intro {
+  border-color: #bfe3da;
+}
+.acc-intro > .acc-summary {
+  background: var(--gold-soft);
+  color: #6a4a08;
+}
+.acc-intro > .acc-summary:hover {
+  background: #fbe7b8;
+}
+
+/* ---- Responsive ---- */
+@media (max-width: 640px) {
+  header .meta {
+    display: none;
+  }
+  .card {
+    padding: 14px;
+    border-radius: 12px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation: none !important;
+    transition: none !important;
+  }
 }

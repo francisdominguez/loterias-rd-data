@@ -4,109 +4,160 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Estadísticas RD · Versión 5</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Sora:wght@600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@600;800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
 <header>
-  <h1>📊 Estadísticas Loterías RD — V5</h1>
-  <p>Análisis de patrones • Repetidores • Espejos • Decenas • Ventana de fechas • Arrastre</p>
-  <div class="meta" id="data-source">Inicializando...</div>
+  <div class="header-inner">
+    <div class="brand">
+      <span class="brand-mark">🎱</span>
+      <div>
+        <h1>Estadísticas Loterías RD</h1>
+        <p>Patrones históricos por fecha, para leer de un vistazo — no una predicción.</p>
+      </div>
+    </div>
+    <div class="meta" id="data-source">Inicializando...</div>
+  </div>
   <div class="sync-banner" id="sync-banner"></div>
-  <button class="settings-btn" onclick="toggleSettings()" title="Configuración">⚙️</button>
+
+  <nav class="tabs" id="tabs" aria-label="Secciones">
+    <button type="button" class="tab-btn active" data-tab="analysis" onclick="switchTab('analysis')">🎯 <span>Análisis</span></button>
+    <button type="button" class="tab-btn" data-tab="simulator" onclick="switchTab('simulator')">🧪 <span>Simulador</span></button>
+    <button type="button" class="tab-btn" data-tab="trend" onclick="switchTab('trend')">🕐 <span>Tendencia</span></button>
+    <button type="button" class="tab-btn" data-tab="data" onclick="switchTab('data')">📚 <span>Datos</span></button>
+    <button type="button" class="tab-btn" data-tab="settings" onclick="switchTab('settings')">⚙️ <span>Configuración</span></button>
+  </nav>
 </header>
 
 <main>
-<section class="card">
-  <h2>🎯 Análisis Avanzado</h2>
-  <div id="data-init-status"></div>
-  <div class="grid">
-    <div><label>Mes</label><input id="month" type="number" min="1" max="12"></div>
-    <div><label>Día</label><input id="day" type="number" min="1" max="31"></div>
-    <div><label>Top</label><select id="top"><option value="10">10</option><option value="5">5</option><option value="15">15</option><option value="20">20</option></select></div>
-  </div>
-  <div class="hint">El análisis combina TODOS los años del histórico para ese día y mes (no compara por año exacto). Cada bloque de resultados también compara automáticamente contra el día calendario anterior (ej: 18 de agosto vs. 17 de agosto).</div>
 
-  <div style="margin-top:12px">
-    <label>Loterías seleccionadas</label>
-    <div class="lottery-chips" id="lottery-chips">
-      <span class="muted small" id="lottery-chips-empty">Ninguna lotería seleccionada todavía.</span>
+<div class="tab-panel active" data-tab-panel="analysis">
+  <section class="card">
+    <div class="card-head">
+      <h2>🎯 Análisis por fecha</h2>
+      <p class="card-sub">Elige mes, día y las loterías que te interesan. La app compara ese día/mes contra todo el histórico cargado.</p>
+    </div>
+    <div id="data-init-status"></div>
+
+    <details class="acc acc-intro">
+      <summary class="acc-summary">❓ ¿Cómo funciona esto, en corto?</summary>
+      <div class="acc-body">
+        <p class="small">Para la fecha que elijas, la app junta <b>todos los años</b> del histórico en que hubo sorteo ese mismo día/mes, y arma un ranking de números y palés según qué tan seguido y recientemente han salido. También compara automáticamente contra el día calendario anterior.</p>
+        <p class="small muted">⚠️ Es una descripción de frecuencias pasadas, no una predicción: no cambia las probabilidades matemáticas de ningún sorteo futuro.</p>
+      </div>
+    </details>
+
+    <div class="grid" style="margin-top:12px">
+      <div><label>Mes</label><input id="month" type="number" min="1" max="12"></div>
+      <div><label>Día</label><input id="day" type="number" min="1" max="31"></div>
+      <div><label>Top</label><select id="top"><option value="10">10</option><option value="5">5</option><option value="15">15</option><option value="20">20</option></select></div>
     </div>
 
-    <div class="lottery-dropdown" id="lottery-dropdown">
-      <button type="button" class="lottery-dropdown-toggle" id="lottery-dropdown-toggle" onclick="toggleLotteryDropdown()">
-        <span id="lottery-dropdown-label">Seleccionar loterías…</span>
-        <span class="chev">▾</span>
-      </button>
-      <div class="lottery-dropdown-panel" id="lottery-dropdown-panel">
-        <input id="lottery-search" type="text" placeholder="Buscar lotería... Ej: Nacional Gana   |   Nacional, Leidsa" oninput="handleLotterySearch()">
-        <div class="hint">Espacios = coincide con TODAS las palabras (Y) · Comas = coincide con CUALQUIERA (O)</div>
-        <div class="lottery-selector" id="lottery-selector" style="margin-top:8px"></div>
-        <div class="actions" style="margin-top:8px">
-          <button class="secondary" type="button" onclick="selectAllLotteries()">Seleccionar todas</button>
-          <button class="secondary" type="button" onclick="clearAllLotteries()">Vaciar selección</button>
+    <div style="margin-top:14px">
+      <label>Loterías seleccionadas</label>
+      <div class="lottery-chips" id="lottery-chips">
+        <span class="muted small" id="lottery-chips-empty">Ninguna lotería seleccionada todavía.</span>
+      </div>
+
+      <div class="lottery-dropdown" id="lottery-dropdown">
+        <button type="button" class="lottery-dropdown-toggle" id="lottery-dropdown-toggle" onclick="toggleLotteryDropdown()">
+          <span id="lottery-dropdown-label">Seleccionar loterías…</span>
+          <span class="chev">▾</span>
+        </button>
+        <div class="lottery-dropdown-panel" id="lottery-dropdown-panel">
+          <input id="lottery-search" type="text" placeholder="Buscar lotería... Ej: Nacional Gana   |   Nacional, Leidsa" oninput="handleLotterySearch()">
+          <div class="hint">Espacios = coincide con TODAS las palabras (Y) · Comas = coincide con CUALQUIERA (O)</div>
+          <div class="lottery-selector" id="lottery-selector" style="margin-top:8px"></div>
+          <div class="actions" style="margin-top:8px">
+            <button class="secondary" type="button" onclick="selectAllLotteries()">Seleccionar todas</button>
+            <button class="secondary" type="button" onclick="clearAllLotteries()">Vaciar selección</button>
+          </div>
         </div>
       </div>
+      <div class="hint">Elige al menos una lotería para ver sus resultados (cada una se muestra por separado más abajo).</div>
     </div>
-    <div class="hint">Elige al menos una lotería para ver sus resultados (cada una se muestra por separado más abajo).</div>
-  </div>
 
-  <div class="actions"><button onclick="analyze()">🔍 Analizar</button></div>
-  <div id="summary" class="grid" style="margin-top:14px"></div>
-</section>
+    <div class="actions"><button onclick="analyze()">🔍 Analizar</button></div>
+    <div id="summary" class="grid" style="margin-top:14px"></div>
+  </section>
 
-<div id="results-container"></div>
+  <div id="results-container"></div>
+</div>
 
-<section class="card">
-  <h2>🧪 Simulador de Jugadas (V8)</h2>
-  <p class="muted small">Elige una lotería y una fecha: la app genera el ranking y los palés candidatos usando SOLO sorteos <b>anteriores</b> a esa fecha (nunca la fecha simulada ni nada posterior). Si ya tienes cargado el resultado real de ese día, lo compara automáticamente número por número.</p>
-  <div class="grid">
-    <div><label>Lotería</label><select id="sim-lottery" class="single-lottery-select"></select></div>
-    <div><label>Fecha a simular</label><input id="sim-date" type="date"></div>
-    <div><label>Top</label><select id="sim-top"><option value="10">10</option><option value="5">5</option><option value="15">15</option><option value="20">20</option></select></div>
-  </div>
-  <div class="actions"><button onclick="runSimulationFromUI()">🧪 Simular</button></div>
-  <div id="sim-results" style="margin-top:14px"></div>
-</section>
+<div class="tab-panel" data-tab-panel="simulator">
+  <section class="card">
+    <div class="card-head">
+      <h2>🧪 Simulador de jugadas</h2>
+      <p class="card-sub">Elige una lotería y una fecha: se genera el ranking y los palés candidatos usando <b>solo</b> sorteos anteriores a esa fecha — nunca la fecha simulada ni nada posterior. Si ya tienes el resultado real cargado, se compara automáticamente.</p>
+    </div>
+    <div class="grid">
+      <div><label>Lotería</label><select id="sim-lottery" class="single-lottery-select"></select></div>
+      <div><label>Fecha a simular</label><input id="sim-date" type="date"></div>
+      <div><label>Top</label><select id="sim-top"><option value="10">10</option><option value="5">5</option><option value="15">15</option><option value="20">20</option></select></div>
+    </div>
+    <div class="actions"><button onclick="runSimulationFromUI()">🧪 Simular</button></div>
+    <div id="sim-results" style="margin-top:14px"></div>
+  </section>
+</div>
 
-<section class="card">
-  <h2>🕐 Tendencia reciente (V9)</h2>
-  <p class="muted small">Idea tomada de portales de estadísticas de lotería en RD: en vez de comparar contra todos los años, mira solo los últimos N sorteos de la lotería elegida y muestra los números más frecuentes en esa ventana, además de qué decenas y terminaciones llevan más sorteos sin salir ("atrasadas").</p>
-  <div class="grid">
-    <div><label>Lotería</label><select id="recent-lottery" class="single-lottery-select"></select></div>
-    <div><label>Últimos N sorteos</label><input id="recent-window" type="number" min="5" max="500" value="60"></div>
-  </div>
-  <div class="actions"><button onclick="runRecentTrendFromUI()">🕐 Ver tendencia reciente</button></div>
-  <div id="recent-results" style="margin-top:14px"></div>
-</section>
+<div class="tab-panel" data-tab-panel="trend">
+  <section class="card">
+    <div class="card-head">
+      <h2>🕐 Tendencia reciente</h2>
+      <p class="card-sub">En vez de comparar contra todos los años, mira solo los últimos N sorteos de la lotería elegida: qué números salen más en esa ventana, y qué decenas/terminaciones llevan más tiempo sin salir ("atrasadas").</p>
+    </div>
+    <div class="grid">
+      <div><label>Lotería</label><select id="recent-lottery" class="single-lottery-select"></select></div>
+      <div><label>Últimos N sorteos</label><input id="recent-window" type="number" min="5" max="500" value="60"></div>
+    </div>
+    <div class="actions"><button onclick="runRecentTrendFromUI()">🕐 Ver tendencia reciente</button></div>
+    <div id="recent-results" style="margin-top:14px"></div>
+  </section>
+</div>
 
-<section class="card settings-section">
-  <h2>⚙️ Configuración</h2>
-  <div class="data-status" id="data-source-badge" style="display:none"></div>
-  <p class="muted">CSV: <b>fecha,loteria,n1,n2,n3</b>. Ejemplo: 2025-08-18,Leidsa,12,34,56 (el año se guarda pero el análisis combina todos los años)</p>
-  <input id="file" type="file" accept=".csv,text/csv">
-  <div class="actions">
-    <button onclick="importCSV()">Importar CSV</button>
-    <button class="secondary" onclick="downloadCSV()">Exportar histórico</button>
-    <button class="secondary" onclick="refreshRemoteData(event)">Actualizar datos remotos</button>
-    <button class="secondary" onclick="toggleHistory()">Ver tabla de datos</button>
-    <button class="danger" onclick="resetData()">Restaurar datos iniciales</button>
-  </div>
-  <p id="status" class="muted" style="margin-top:8px"></p>
+<div class="tab-panel" data-tab-panel="data">
+  <section class="card">
+    <div class="card-head">
+      <h2>📚 Datos cargados <span class="badge-count" id="total-records-badge">0</span></h2>
+      <p class="card-sub">Todos los sorteos que tiene la app en este momento, más recientes primero.</p>
+    </div>
+    <span id="total-records" style="display:none">0</span>
+    <div id="history"></div>
+    <div class="good small" style="margin-top:12px">✓ Base con 3+ años de histórico. Los datos remotos se sincronizan automáticamente.</div>
+    <div class="warning small">⚠️ El ranking describe frecuencias históricas. No predice sorteos ni cambia probabilidades matemáticas.</div>
+  </section>
+</div>
 
-  <h3 style="margin-top:18px;font-size:15px">🕒 Horarios de los sorteos</h3>
-  <p class="muted small">Horarios de referencia (lunes a sábado), pueden variar domingos/feriados o cambiar con el tiempo. Ajústalos si no coinciden con la realidad.</p>
-  <div id="schedule-editor"></div>
-  <div class="actions" style="margin-top:8px">
-    <button class="secondary" type="button" onclick="saveScheduleFromEditor()">Guardar horarios</button>
-  </div>
-</section>
+<div class="tab-panel" data-tab-panel="settings">
+  <section class="card">
+    <div class="card-head">
+      <h2>⚙️ Configuración</h2>
+      <p class="card-sub">Importa o exporta tu histórico, sincroniza datos remotos y ajusta los horarios de sorteo.</p>
+    </div>
+    <div class="data-status" id="data-source-badge" style="display:none"></div>
+    <p class="muted">CSV: <b>fecha,loteria,n1,n2,n3</b>. Ejemplo: 2025-08-18,Leidsa,12,34,56 (el año se guarda, pero el análisis combina todos los años)</p>
+    <input id="file" type="file" accept=".csv,text/csv">
+    <div class="actions">
+      <button onclick="importCSV()">Importar CSV</button>
+      <button class="secondary" onclick="downloadCSV()">Exportar histórico</button>
+      <button class="secondary" onclick="refreshRemoteData(event)">Actualizar datos remotos</button>
+      <button class="secondary" onclick="switchTab('data')">Ver tabla de datos</button>
+      <button class="danger" onclick="resetData()">Restaurar datos iniciales</button>
+    </div>
+    <p id="status" class="muted" style="margin-top:8px"></p>
 
-<section class="card history-section">
-  <h2>📚 Datos Cargados (<span id="total-records">0</span> registros)</h2>
-  <div id="history"></div>
-  <div class="good small" style="margin-top:12px">✓ Base con 3+ años de histórico. Datos remoto se sincroniza automáticamente.</div>
-  <div class="warning small">⚠️ El ranking describe frecuencias históricas. No predice sorteos ni cambia probabilidades matemáticas.</div>
-</section>
+    <h3 style="margin-top:18px;font-size:15px">🕒 Horarios de los sorteos</h3>
+    <p class="muted small">Horarios de referencia (lunes a sábado); pueden variar domingos/feriados o cambiar con el tiempo. Ajústalos si no coinciden con la realidad.</p>
+    <div id="schedule-editor"></div>
+    <div class="actions" style="margin-top:8px">
+      <button class="secondary" type="button" onclick="saveScheduleFromEditor()">Guardar horarios</button>
+    </div>
+  </section>
+</div>
+
 </main>
 
 <script src="script.js" defer></script>
