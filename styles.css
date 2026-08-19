@@ -807,6 +807,53 @@ details summary::-webkit-details-marker {
   background: #fbe7b8;
 }
 
+/* ============================================
+   REGISTRO DE RESULTADOS DEL DÍA (pestaña Próxima)
+   Formulario compacto por lotería para ir capturando cada número apenas se
+   publica el sorteo. .table-scroll evita que la columna extra rompa el
+   layout en móvil (la tabla de "Próxima" ya tenía 6 columnas).
+   ============================================ */
+.table-scroll {
+  overflow-x: auto;
+}
+.today-result-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 150px;
+}
+.today-result-inputs {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+.result-num-input {
+  width: 36px;
+  padding: 6px 0;
+  text-align: center;
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size: 13px;
+}
+.today-result-actions {
+  display: flex;
+  gap: 6px;
+}
+.small-btn {
+  width: auto;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+.today-result-error {
+  margin: 0;
+}
+.today-result-display {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 /* ---- Responsive ---- */
 @media (max-width: 640px) {
   header .meta {

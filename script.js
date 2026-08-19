@@ -132,6 +132,11 @@ let dataSource = "seed";
 let allLotteries = [];
 let selectedLotteries = new Set();
 
+// Loterías cuya fila, en la pestaña "Próxima", está actualmente mostrando
+// el formulario de captura (en vez de los números ya guardados) porque el
+// usuario pulsó "Editar". Vive solo en memoria: se reinicia al recargar.
+let upcomingEditing = new Set();
+
 // ============================================
 // FECHA POR DEFECTO = HOY (nunca hardcodeada)
 // Solo se usa para rellenar los campos año/mes/día al cargar la página,
@@ -1154,6 +1159,96 @@ function computeMostOverdueNumber(lottery) {
   return best;
 }
 
+// Fecha de HOY (reloj del dispositivo) como string 'YYYY-MM-DD', en el mismo
+// formato que usa todo el histórico. Se usa exclusivamente para guardar los
+// resultados que el usuario va registrando en la pestaña "Próxima" a medida
+// que se publican — nunca para comparar/ordenar fechas de sorteos pasados.
+function todayDateStr() {
+  const now = new Date();
+  return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+}
+
+// Cuántos números trae normalmente cada lotería (3 en la mayoría, 5 en Mega
+// Chance, etc.), inferido del histórico ya cargado: se usa para saber
+// cuántas casillas mostrar en el formulario de captura de resultados. Si la
+// lotería es nueva y no hay ningún sorteo previo, se asume 3 por defecto.
+function getTypicalNumberCount(lottery) {
+  const rows = data.filter(r => r.lottery === lottery);
+  if (rows.length === 0) return 3;
+  const counts = {};
+  rows.forEach(r => { counts[r.numbers.length] = (counts[r.numbers.length] || 0) + 1; });
+  let best = 3, bestCount = -1;
+  Object.entries(counts).forEach(([len, c]) => {
+    if (c > bestCount) { bestCount = c; best = Number(len); }
+  });
+  return best;
+}
+
+// Guarda (o reemplaza, si ya existía) el resultado de HOY para una lotería.
+// Se usa desde el formulario de captura de la pestaña "Próxima". Reutiliza
+// save() para persistir en localStorage y refrescar Datos/Análisis, igual
+// que cualquier otra fuente de datos (CSV, remoto, seed).
+function saveTodayResult(lottery, numbers) {
+  const dateStr = todayDateStr();
+  data = data.filter(r => !(r.date === dateStr && r.lottery === lottery));
+  data.push({ date: dateStr, lottery, numbers });
+  dataSource = "local";
+  upcomingEditing.delete(lottery);
+  updateDataSourceBadge();
+  save();
+  buildUpcomingSummary();
+  showSyncBanner("success", `✓ Resultado de hoy guardado para ${lottery}: ${numbers.join(" - ")}`);
+}
+
+// Delegación de eventos del formulario/botones de captura de resultados en
+// la pestaña "Próxima" (ver listeners al final del archivo, junto a los
+// demás data-* de delegación).
+function handleUpcomingResultsClick(e) {
+  const editBtn = e.target.closest("[data-edit-result]");
+  if (editBtn) {
+    upcomingEditing.add(editBtn.dataset.editResult);
+    buildUpcomingSummary();
+    return;
+  }
+  const cancelBtn = e.target.closest("[data-cancel-result]");
+  if (cancelBtn) {
+    upcomingEditing.delete(cancelBtn.dataset.cancelResult);
+    buildUpcomingSummary();
+    return;
+  }
+}
+
+function handleUpcomingResultsSubmit(e) {
+  const form = e.target.closest("[data-result-lottery]");
+  if (!form) return;
+  e.preventDefault();
+
+  const lottery = form.dataset.resultLottery;
+  const errorEl = form.querySelector(".today-result-error");
+  const inputs = [...form.querySelectorAll(".result-num-input")];
+
+  const numbers = [];
+  let invalid = false;
+  inputs.forEach(inp => {
+    const cleaned = inp.value.replace(/\D/g, "");
+    if (cleaned.length === 0 || cleaned.length > 2) {
+      invalid = true;
+      return;
+    }
+    numbers.push(pad(parseInt(cleaned, 10)));
+  });
+
+  if (invalid || numbers.length === 0) {
+    if (errorEl) {
+      errorEl.textContent = "Revisa los números: cada casilla necesita 1 o 2 dígitos (00-99).";
+      errorEl.style.display = "block";
+    }
+    return;
+  }
+
+  saveTodayResult(lottery, numbers);
+}
+
 function buildUpcomingSummary() {
   const container = document.getElementById("upcoming-results");
   if (!container) return;
@@ -1161,6 +1256,7 @@ function buildUpcomingSummary() {
   const now = new Date();
   const month = now.getMonth() + 1;
   const day = now.getDate();
+  const todayStr = todayDateStr();
   const nowMinutes = now.getHours() * 60 + now.getMinutes();
 
   const universe = allLotteries.length ? allLotteries : Object.keys(lotterySchedule);
@@ -1183,7 +1279,8 @@ function buildUpcomingSummary() {
     }
     const raw = computeRawTopNumber(lottery);
     const overdue = computeMostOverdueNumber(lottery);
-    return { lottery, timeStr, minutes: parseScheduleTimeToMinutes(timeStr), top3, paleTop, raw, overdue };
+    const todayRecord = data.find(r => r.date === todayStr && r.lottery === lottery) || null;
+    return { lottery, timeStr, minutes: parseScheduleTimeToMinutes(timeStr), top3, paleTop, raw, overdue, todayRecord };
   });
 
   rows.sort((a, b) => {
@@ -1200,8 +1297,9 @@ function buildUpcomingSummary() {
 
   container.innerHTML = `
     <div class="hint" style="margin-bottom:8px">🕐 Hora de tu dispositivo: <b>${escapeHtml(nowLabel)}</b> · fecha usada: ${pad(day)}/${pad(month)}</div>
+    <div class="table-scroll">
     <table>
-      <tr><th>Hora</th><th>Lotería</th><th>Top 3 (fecha exacta)</th><th>Palé</th><th>Más frecuente (histórico)</th><th>Más atrasado</th></tr>
+      <tr><th>Hora</th><th>Lotería</th><th>Top 3 (fecha exacta)</th><th>Palé</th><th>Más frecuente (histórico)</th><th>Más atrasado</th><th>Resultado de hoy</th></tr>
       ${rows.map((r, i) => {
         const isNext = i === nextIdx;
         const top3Html = r.top3.length
@@ -1210,6 +1308,7 @@ function buildUpcomingSummary() {
         const paleHtml = r.paleTop ? `<span class="num">${r.paleTop}</span>` : '<span class="small muted">—</span>';
         const rawHtml = r.raw ? `<span class="num">${r.raw.n}</span> <span class="small muted">(${r.raw.c}/${r.raw.total})</span>` : '<span class="small muted">—</span>';
         const overdueHtml = r.overdue ? `<span class="num cold">${r.overdue.n}</span> <span class="small muted">(${r.overdue.sorteosAtras} sorteos)</span>` : '<span class="small muted">—</span>';
+        const resultHtml = buildTodayResultCell(r.lottery, r.todayRecord);
         return `
           <tr${isNext ? ' style="background:#f0fdfa"' : ""}>
             <td>${r.timeStr ? escapeHtml(r.timeStr) : '<span class="small muted">—</span>'}${isNext ? ' <span class="lottery-hour-tag">▶ Próxima</span>' : ""}</td>
@@ -1218,11 +1317,48 @@ function buildUpcomingSummary() {
             <td>${paleHtml}</td>
             <td>${rawHtml}</td>
             <td>${overdueHtml}</td>
+            <td>${resultHtml}</td>
           </tr>
         `;
       }).join("")}
     </table>
+    </div>
     <div class="hint" style="margin-top:8px">"Fecha exacta" = puntaje ponderado solo para el ${pad(day)}/${pad(month)} a través de los años. "Histórico" y "Atrasado" = TODO el historial de la lotería, sin filtrar por fecha. Los tres son frecuencia pasada, no predicción.</div>
+    <div class="hint">📝 En "Resultado de hoy" puedes ir escribiendo cada número apenas la lotería correspondiente publique su sorteo — se guarda al histórico y entra en el análisis de inmediato.</div>
+  `;
+}
+
+// Arma la celda "Resultado de hoy" para una lotería: si ya se registró el
+// resultado de la fecha de hoy, muestra los números guardados con un botón
+// para editarlos; si no, muestra el formulario de captura (con tantas
+// casillas como números suele traer esa lotería). El modo edición se
+// controla con el Set en memoria `upcomingEditing`.
+function buildTodayResultCell(lottery, todayRecord) {
+  const isEditing = upcomingEditing.has(lottery);
+
+  if (todayRecord && !isEditing) {
+    return `
+      <div class="today-result-display">
+        ${todayRecord.numbers.map(n => `<span class="num">${escapeHtml(n)}</span>`).join("")}
+        <button type="button" class="secondary small-btn" data-edit-result="${escapeHtml(lottery)}">✏️ Editar</button>
+      </div>
+    `;
+  }
+
+  const count = todayRecord ? todayRecord.numbers.length : getTypicalNumberCount(lottery);
+  const existing = todayRecord ? todayRecord.numbers : [];
+
+  return `
+    <form class="today-result-form" data-result-lottery="${escapeHtml(lottery)}">
+      <div class="today-result-inputs">
+        ${Array.from({ length: count }).map((_, i) => `<input type="text" inputmode="numeric" maxlength="2" class="result-num-input" placeholder="00" value="${escapeHtml(existing[i] || "")}">`).join("")}
+      </div>
+      <div class="today-result-actions">
+        <button type="submit" class="small-btn">💾 Guardar</button>
+        ${todayRecord ? `<button type="button" class="secondary small-btn" data-cancel-result="${escapeHtml(lottery)}">Cancelar</button>` : ""}
+      </div>
+      <div class="today-result-error small error" style="display:none"></div>
+    </form>
   `;
 }
 
@@ -2340,5 +2476,13 @@ document.getElementById("lottery-chips")?.addEventListener("click", (e) => {
   if (!btn) return;
   toggleLottery(btn.dataset.removeLottery);
 });
+
+// Delegación para el formulario de "Resultado de hoy" en la pestaña
+// Próxima (botones Editar/Cancelar y el submit del formulario de captura).
+// El contenedor #upcoming-results existe desde el HTML inicial y solo se le
+// reemplaza el innerHTML en cada buildUpcomingSummary(), así que basta con
+// enganchar los listeners una sola vez aquí.
+document.getElementById("upcoming-results")?.addEventListener("click", handleUpcomingResultsClick);
+document.getElementById("upcoming-results")?.addEventListener("submit", handleUpcomingResultsSubmit);
 
 document.addEventListener("DOMContentLoaded", initializeData);
