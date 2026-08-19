@@ -937,6 +937,16 @@ details summary::-webkit-details-marker {
   flex-wrap: wrap;
   gap: 4px;
 }
+.up-check-link {
+  font-size: 10.5px;
+  color: var(--brand);
+  font-weight: 700;
+  text-decoration: none;
+  align-self: center;
+}
+.up-check-link:hover {
+  text-decoration: underline;
+}
 
 /* ---- Responsive ---- */
 @media (max-width: 640px) {

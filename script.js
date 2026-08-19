@@ -1218,6 +1218,29 @@ function handleUpcomingResultsClick(e) {
   }
 }
 
+// Si el usuario copia el resultado completo de la página de la lotería
+// (ej. "34 71 66", "34-71-66" o "347166") y lo pega en la primera casilla,
+// lo reparte automáticamente en esa y las siguientes casillas del mismo
+// formulario, en vez de pegar todo el texto en una sola. Un pegado normal
+// de 1-2 dígitos se deja pasar tal cual.
+function handleUpcomingResultsPaste(e) {
+  const input = e.target.closest(".result-num-input");
+  if (!input) return;
+  const text = (e.clipboardData || window.clipboardData)?.getData("text") || "";
+  const digitsOnly = text.replace(/\D/g, "");
+  if (digitsOnly.length <= 2) return;
+
+  e.preventDefault();
+  const form = input.closest("form");
+  const inputs = [...form.querySelectorAll(".result-num-input")];
+  const startIdx = inputs.indexOf(input);
+  const groups = digitsOnly.match(/\d{1,2}/g) || [];
+  groups.forEach((g, i) => {
+    const target = inputs[startIdx + i];
+    if (target) target.value = g.padStart(2, "0");
+  });
+}
+
 function handleUpcomingResultsSubmit(e) {
   const form = e.target.closest("[data-result-lottery]");
   if (!form) return;
@@ -1338,12 +1361,14 @@ function buildUpcomingSummary() {
 // controla con el Set en memoria `upcomingEditing`.
 function buildTodayResultCell(lottery, todayRecord) {
   const isEditing = upcomingEditing.has(lottery);
+  const checkLink = `<a href="https://loteriasdominicanas.com/" target="_blank" rel="noopener" class="up-check-link">🔗 Ver resultado</a>`;
 
   if (todayRecord && !isEditing) {
     return `
       <div class="today-result-display">
         ${todayRecord.numbers.map(n => `<span class="num">${escapeHtml(n)}</span>`).join("")}
         <button type="button" class="secondary small-btn" data-edit-result="${escapeHtml(lottery)}">✏️ Editar</button>
+        ${checkLink}
       </div>
     `;
   }
@@ -1359,6 +1384,7 @@ function buildTodayResultCell(lottery, todayRecord) {
       <div class="today-result-actions">
         <button type="submit" class="small-btn">💾 Guardar</button>
         ${todayRecord ? `<button type="button" class="secondary small-btn" data-cancel-result="${escapeHtml(lottery)}">Cancelar</button>` : ""}
+        ${checkLink}
       </div>
       <div class="today-result-error small error" style="display:none"></div>
     </form>
@@ -2487,5 +2513,6 @@ document.getElementById("lottery-chips")?.addEventListener("click", (e) => {
 // enganchar los listeners una sola vez aquí.
 document.getElementById("upcoming-results")?.addEventListener("click", handleUpcomingResultsClick);
 document.getElementById("upcoming-results")?.addEventListener("submit", handleUpcomingResultsSubmit);
+document.getElementById("upcoming-results")?.addEventListener("paste", handleUpcomingResultsPaste, true);
 
 document.addEventListener("DOMContentLoaded", initializeData);
