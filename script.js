@@ -2074,51 +2074,54 @@ function runSimulation(lottery, targetDateStr, top) {
 // regla que ya tenía runSimulation), y al final se agregan los aciertos de
 // todos los años igual que runBacktestSeries (mismo cálculo de línea base
 // "al azar"), más un desglose año por año para transparencia.
+// V12 · Antes esto corría un backtest año por año (cada año con su propio
+// recorte "solo datos anteriores"), lo que exigía 2+ años cargados para
+// poder comparar y con pocos años no servía como estadística. Ahora arma
+// UN SOLO ranking juntando TODOS los años cargados para ese día/mes —igual
+// que hace "Análisis", pero para una sola lotería— y aparte muestra, año
+// por año, qué número salió realmente y si coincidió con ese ranking.
 function runSimulationByDayMonth(lottery, month, day, top) {
-  const testDates = [...new Set(data.filter(r => r.lottery === lottery).map(r => r.date))]
-    .filter(dateStr => { const { m, d } = splitDate(dateStr); return m === month && d === day; })
-    .sort();
-
-  const perYear = [];
-  testDates.forEach(targetDateStr => {
-    const sim = runSimulation(lottery, targetDateStr, top);
-    // Se descarta el año más antiguo (o los que no tengan ningún sorteo
-    // previo de ese mismo día/mes): no hay con qué construir un ranking.
-    if (sim.sampleSize === 0) return;
-    perYear.push(sim);
+  const rowsForDayMonth = data.filter(r => {
+    const { m, d } = splitDate(r.date);
+    return m === month && d === day && r.lottery === lottery;
   });
 
-  if (perYear.length === 0) {
-    return { lottery, month, day, top, yearsTested: 0, perYear: [] };
+  if (rowsForDayMonth.length === 0) {
+    return { lottery, month, day, top, yearsUsed: [], topRanked: [], topPales: [], perYear: [] };
   }
 
-  let totalActualNumbers = 0, totalNumberHits = 0, expectedNumberHitsRandom = 0;
-  let totalPaleCandidates = 0, totalPaleHits = 0, expectedPaleHitsRandom = 0;
+  const yearsUsed = [...new Set(rowsForDayMonth.map(r => r.date.substring(0, 4)))].sort();
 
-  perYear.forEach(sim => {
-    totalActualNumbers += sim.actualNumbers.length;
-    totalNumberHits += sim.numberHits.length;
-    expectedNumberHitsRandom += sim.topRanked.length * (sim.actualNumbers.length / 100);
+  const ranking = computeLotteryRanking(rowsForDayMonth, lottery, month, day, data);
+  const topRanked = ranking.ranked.slice(0, top);
+  const topPales = ranking.pairs.slice(0, 10);
+  const topSet = new Set(topRanked.map(x => x.n));
+  const topPaleKeys = new Set(topPales.map(([key]) => key));
 
-    const actualCombos = (sim.actualNumbers.length * (sim.actualNumbers.length - 1)) / 2;
-    totalPaleCandidates += sim.topPales.length;
-    totalPaleHits += sim.paleHits.length;
-    expectedPaleHitsRandom += sim.topPales.length * (actualCombos / 4950);
+  // Números/palés reales por año (agrupa por si hubo una fila duplicada
+  // para el mismo año/lotería/fecha por una importación repetida).
+  const byYear = {};
+  rowsForDayMonth.forEach(r => {
+    const year = r.date.substring(0, 4);
+    if (!byYear[year]) byYear[year] = new Set();
+    r.numbers.forEach(n => byYear[year].add(n));
   });
 
-  return {
-    lottery, month, day, top,
-    yearsTested: perYear.length,
-    perYear,
-    totalActualNumbers, totalNumberHits,
-    avgHitsPerDraw: totalNumberHits / perYear.length,
-    expectedAvgHitsPerDrawRandom: expectedNumberHitsRandom / perYear.length,
-    hitRatePct: totalActualNumbers ? (totalNumberHits / totalActualNumbers) * 100 : 0,
-    expectedHitRatePct: totalActualNumbers ? (expectedNumberHitsRandom / totalActualNumbers) * 100 : 0,
-    totalPaleHits, totalPaleCandidates,
-    avgPaleHitsPerDraw: totalPaleHits / perYear.length,
-    expectedAvgPaleHitsPerDrawRandom: expectedPaleHitsRandom / perYear.length,
-  };
+  const perYear = yearsUsed.map(year => {
+    const actualNumbers = [...byYear[year]];
+    const numberHits = actualNumbers.filter(n => topSet.has(n));
+    let paleHit = null;
+    outer:
+    for (let i = 0; i < actualNumbers.length; i++) {
+      for (let j = i + 1; j < actualNumbers.length; j++) {
+        const key = [actualNumbers[i], actualNumbers[j]].sort().join("–");
+        if (topPaleKeys.has(key)) { paleHit = key; break outer; }
+      }
+    }
+    return { year, actualNumbers, numberHits, paleHit };
+  }).sort((a, b) => b.year.localeCompare(a.year)); // año más reciente primero
+
+  return { lottery, month, day, top, yearsUsed, topRanked, topPales, perYear };
 }
 
 function buildSimulationSeriesHtml(res) {
@@ -2127,48 +2130,65 @@ function buildSimulationSeriesHtml(res) {
   let html = `<section class="card lottery-result-block">
     <div class="lottery-result-header">
       <h3>🧪 ${escapeHtml(res.lottery)}${hour ? ` <span class="lottery-hour-tag">🕒 ${escapeHtml(hour)}</span>` : ""}</h3>
-      <span class="badge-count">${res.yearsTested} año${res.yearsTested === 1 ? "" : "s"} probado${res.yearsTested === 1 ? "" : "s"} para el ${dateLabel}</span>
+      <span class="badge-count">${res.yearsUsed.length} año${res.yearsUsed.length === 1 ? "" : "s"} cargado${res.yearsUsed.length === 1 ? "" : "s"} para el ${dateLabel}</span>
     </div>`;
 
-  if (res.yearsTested === 0) {
-    html += `<div class="empty">No hay suficientes años previos cargados para simular el ${dateLabel} de esta lotería — hace falta al menos un año anterior a otro con sorteo en esa misma fecha.</div></section>`;
+  if (res.yearsUsed.length === 0) {
+    html += `<div class="empty">No hay ningún sorteo cargado para el ${dateLabel} de esta lotería.</div></section>`;
     return html;
   }
 
-  html += `<div class="hint">Para CADA año en que esta lotería tuvo sorteo el ${dateLabel}, se recalculó el ranking top ${res.top} usando SOLO datos anteriores a esa fecha exacta (nunca la fecha simulada ni nada posterior) y se comparó contra el resultado real de ese año. Abajo, el promedio de los ${res.yearsTested} años probados y el detalle de cada uno.</div>`;
+  html += `<div class="hint">El ranking de abajo junta TODOS los años cargados con sorteo el ${dateLabel} (${res.yearsUsed.join(", ")}) — la misma lógica que "Análisis", para esta lotería sola.</div>`;
 
-  const diff = res.avgHitsPerDraw - res.expectedAvgHitsPerDrawRandom;
-  const diffLabel = diff > 0.05
-    ? `+${diff.toFixed(2)} por encima del azar`
-    : diff < -0.05
-      ? `${diff.toFixed(2)} por debajo del azar`
-      : "prácticamente igual al azar";
-
-  html += `
-    <div class="insights-grid">
-      <div class="insight-card"><strong>Números acertados</strong>${res.totalNumberHits} de ${res.totalActualNumbers} (${res.hitRatePct.toFixed(1)}%)</div>
-      <div class="insight-card"><strong>Promedio por año (top ${res.top})</strong>${res.avgHitsPerDraw.toFixed(2)} números acertados</div>
-      <div class="insight-card"><strong>Esperado si fuera al azar</strong>${res.expectedAvgHitsPerDrawRandom.toFixed(2)} números por año (${res.expectedHitRatePct.toFixed(1)}%)</div>
-      <div class="insight-card"><strong>Diferencia contra el azar</strong>${diffLabel}</div>
-      <div class="insight-card"><strong>Palés acertados</strong>${res.totalPaleHits} en ${res.yearsTested} año${res.yearsTested === 1 ? "" : "s"} (prom. ${res.avgPaleHitsPerDraw.toFixed(2)}/año)</div>
-      <div class="insight-card"><strong>Palés esperados al azar</strong>${res.expectedAvgPaleHitsPerDrawRandom.toFixed(2)}/año</div>
-    </div>`;
-
-  html += `<div class="lottery-result-sub">📅 Desglose año por año</div>
+  html += `<div class="lottery-result-sub">🔥 Ranking (top ${res.top}, con todos los años)</div>
     <table>
-      <tr><th>Año</th><th>Sorteos previos usados</th><th>Resultado real</th><th>Acertados (top ${res.top})</th><th>Palé acertado</th></tr>
-      ${res.perYear.map(sim => `
+      <tr><th>#</th><th>Número</th><th>Puntaje</th><th>Salió en</th></tr>
+      ${res.topRanked.map((x, i) => {
+        const hitYears = res.perYear.filter(y => y.numberHits.includes(x.n)).map(y => y.year);
+        return `
         <tr>
-          <td><strong>${sim.targetDateStr.substring(0, 4)}</strong></td>
-          <td>${sim.sampleSize}</td>
-          <td>${sim.actualNumbers.map(n => `<span class="num">${escapeHtml(n)}</span>`).join("")}</td>
-          <td>${sim.numberHits.length} de ${sim.actualNumbers.length}${sim.numberHits.length ? `: ${sim.numberHits.map(x => escapeHtml(x.n)).join(", ")}` : ""}</td>
-          <td>${sim.paleHits.length ? `✓ ${sim.paleHits.map(([k]) => escapeHtml(k)).join(", ")}` : '<span class="small muted">—</span>'}</td>
+          <td><strong>${i + 1}</strong></td>
+          <td><span class="num${hitYears.length ? " hot" : ""}">${x.n}</span></td>
+          <td><span class="stars">${generateStars(x.score, 100)}</span> <span class="small muted">${x.score.toFixed(1)}</span></td>
+          <td>${hitYears.length ? `${hitYears.length} de ${res.yearsUsed.length} año${res.yearsUsed.length === 1 ? "" : "s"} (${hitYears.join(", ")})` : '<span class="small muted">ningún año</span>'}</td>
+        </tr>`;
+      }).join("")}
+    </table>`;
+
+  html += `<div class="lottery-result-sub">🎯 Palés candidatos (top 10, con todos los años)</div>`;
+  if (res.topPales.length === 0) {
+    html += '<div class="empty">No hay suficientes palés en el histórico para este día/mes.</div>';
+  } else {
+    html += `
+      <table>
+        <tr><th>#</th><th>Palé</th><th>Apariciones</th><th>Salió en</th></tr>
+        ${res.topPales.map(([key, count], i) => {
+          const hitYears = res.perYear.filter(y => y.paleHit === key).map(y => y.year);
+          return `
+          <tr>
+            <td><strong>${i + 1}</strong></td>
+            <td><span class="num${hitYears.length ? " hot" : ""}">${key}</span></td>
+            <td><strong>${count}</strong></td>
+            <td>${hitYears.length ? `${hitYears.length} de ${res.yearsUsed.length} (${hitYears.join(", ")})` : '<span class="small muted">ningún año</span>'}</td>
+          </tr>`;
+        }).join("")}
+      </table>`;
+  }
+
+  html += `<div class="lottery-result-sub">📅 Qué salió cada año en el ${dateLabel}</div>
+    <table>
+      <tr><th>Año</th><th>Resultado real</th><th>¿Coincidió con el top ${res.top}?</th><th>¿Palé coincidió?</th></tr>
+      ${res.perYear.map(y => `
+        <tr>
+          <td><strong>${y.year}</strong></td>
+          <td>${y.actualNumbers.map(n => `<span class="num">${escapeHtml(n)}</span>`).join("")}</td>
+          <td>${y.numberHits.length ? `✓ ${y.numberHits.map(n => escapeHtml(n)).join(", ")}` : '<span class="small muted">no</span>'}</td>
+          <td>${y.paleHit ? `✓ ${escapeHtml(y.paleHit)}` : '<span class="small muted">no</span>'}</td>
         </tr>
       `).join("")}
     </table>`;
 
-  html += `<div class="warning">⚠️ Sigue siendo frecuencia pasada, no predicción: describe cómo le habría ido a este método en los años ya ocurridos para el ${dateLabel}, no cambia las probabilidades matemáticas del próximo sorteo.</div>`;
+  html += `<div class="warning">⚠️ Este ranking se calculó CON los mismos años que aparecen en la tabla de arriba — a diferencia de "Backtest agregado" (abajo), no es una prueba a ciegas de predicción, es una foto de qué números/palés se repiten más en esta fecha a través del histórico. Frecuencia pasada, no predicción.</div>`;
 
   html += "</section>";
   return html;
