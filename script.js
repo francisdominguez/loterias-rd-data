@@ -244,6 +244,7 @@ async function initializeData() {
   updateDataSourceBadge();
   renderHistory();
   analyze();
+  buildUpcomingSummary();
 }
 
 // ============================================
@@ -1105,6 +1106,126 @@ function computeLotteryRanking(rows, lottery, m, d, windowSourceRows = data) {
   };
 }
 
+// ============================================
+// RESUMEN LIMPIO / "PRÓXIMA LOTERÍA" (pestaña dedicada)
+// Una sola tabla, sin acordeones ni jerga: Hora · Lotería · Top 3 · Palé.
+// Usa la fecha y hora REALES del dispositivo del usuario (no la fecha que
+// esté puesta en la pestaña de Análisis) para marcar cuál sorteo es el
+// siguiente en el reloj. Reutiliza computeLotteryRanking tal cual, así que
+// el número que muestra es exactamente el mismo que en la pestaña de
+// Análisis para esa lotería y fecha — nunca se recalcula distinto.
+// ============================================
+function parseScheduleTimeToMinutes(str) {
+  const m = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec((str || "").trim());
+  if (!m) return null;
+  let h = parseInt(m[1], 10);
+  const min = parseInt(m[2], 10);
+  const ap = m[3].toUpperCase();
+  if (ap === "PM" && h !== 12) h += 12;
+  if (ap === "AM" && h === 12) h = 0;
+  return h * 60 + min;
+}
+
+// ---- Método A: frecuencia bruta simple sobre TODO el histórico de la
+// lotería (sin ponderar por año ni filtrar por fecha exacta) ----
+function computeRawTopNumber(lottery) {
+  const rows = data.filter(r => r.lottery === lottery);
+  if (rows.length === 0) return null;
+  const freq = {};
+  rows.forEach(r => [...new Set(r.numbers)].forEach(n => { freq[n] = (freq[n] || 0) + 1; }));
+  const top = Object.entries(freq).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))[0];
+  return { n: top[0], c: top[1], total: rows.length };
+}
+
+// ---- Método B: número más "atrasado" (más sorteos consecutivos sin
+// salir), sobre TODO el histórico ordenado cronológicamente ----
+function computeMostOverdueNumber(lottery) {
+  const rows = data.filter(r => r.lottery === lottery).sort((a, b) => a.date.localeCompare(b.date));
+  if (rows.length === 0) return null;
+  const lastSeen = {};
+  rows.forEach((r, idx) => [...new Set(r.numbers)].forEach(n => { lastSeen[n] = idx; }));
+  let best = null;
+  for (let i = 0; i < 100; i++) {
+    const n = pad(i);
+    const idx = lastSeen[n];
+    const sorteosAtras = idx == null ? rows.length : (rows.length - 1 - idx);
+    if (!best || sorteosAtras > best.sorteosAtras) best = { n, sorteosAtras };
+  }
+  return best;
+}
+
+function buildUpcomingSummary() {
+  const container = document.getElementById("upcoming-results");
+  if (!container) return;
+
+  const now = new Date();
+  const month = now.getMonth() + 1;
+  const day = now.getDate();
+  const nowMinutes = now.getHours() * 60 + now.getMinutes();
+
+  const universe = allLotteries.length ? allLotteries : Object.keys(lotterySchedule);
+  if (universe.length === 0) {
+    container.innerHTML = '<div class="empty">Aún no hay loterías cargadas.</div>';
+    return;
+  }
+
+  const rows = universe.map(lottery => {
+    const timeStr = getScheduleFor(lottery);
+    const rowsForDate = data.filter(r => {
+      const { m, d } = splitDate(r.date);
+      return m === month && d === day && r.lottery === lottery;
+    });
+    let top3 = [], paleTop = null;
+    if (rowsForDate.length) {
+      const rk = computeLotteryRanking(rowsForDate, lottery, month, day, data);
+      top3 = rk.ranked.slice(0, 3).map(x => x.n);
+      paleTop = rk.pairs.length ? rk.pairs[0][0] : null;
+    }
+    const raw = computeRawTopNumber(lottery);
+    const overdue = computeMostOverdueNumber(lottery);
+    return { lottery, timeStr, minutes: parseScheduleTimeToMinutes(timeStr), top3, paleTop, raw, overdue };
+  });
+
+  rows.sort((a, b) => {
+    if (a.minutes == null && b.minutes == null) return a.lottery.localeCompare(b.lottery);
+    if (a.minutes == null) return 1;
+    if (b.minutes == null) return -1;
+    return a.minutes - b.minutes;
+  });
+
+  let nextIdx = rows.findIndex(r => r.minutes != null && r.minutes >= nowMinutes);
+  if (nextIdx === -1) nextIdx = rows.findIndex(r => r.minutes != null);
+
+  const nowLabel = now.toLocaleTimeString("es-DO", { hour: "numeric", minute: "2-digit" });
+
+  container.innerHTML = `
+    <div class="hint" style="margin-bottom:8px">🕐 Hora de tu dispositivo: <b>${escapeHtml(nowLabel)}</b> · fecha usada: ${pad(day)}/${pad(month)}</div>
+    <table>
+      <tr><th>Hora</th><th>Lotería</th><th>Top 3 (fecha exacta)</th><th>Palé</th><th>Más frecuente (histórico)</th><th>Más atrasado</th></tr>
+      ${rows.map((r, i) => {
+        const isNext = i === nextIdx;
+        const top3Html = r.top3.length
+          ? r.top3.map(n => `<span class="num${isNext ? " recommended" : ""}">${n}</span>`).join(" ")
+          : '<span class="small muted">Sin sorteo exacto hoy en el histórico</span>';
+        const paleHtml = r.paleTop ? `<span class="num">${r.paleTop}</span>` : '<span class="small muted">—</span>';
+        const rawHtml = r.raw ? `<span class="num">${r.raw.n}</span> <span class="small muted">(${r.raw.c}/${r.raw.total})</span>` : '<span class="small muted">—</span>';
+        const overdueHtml = r.overdue ? `<span class="num cold">${r.overdue.n}</span> <span class="small muted">(${r.overdue.sorteosAtras} sorteos)</span>` : '<span class="small muted">—</span>';
+        return `
+          <tr${isNext ? ' style="background:#f0fdfa"' : ""}>
+            <td>${r.timeStr ? escapeHtml(r.timeStr) : '<span class="small muted">—</span>'}${isNext ? ' <span class="lottery-hour-tag">▶ Próxima</span>' : ""}</td>
+            <td><strong>${escapeHtml(r.lottery)}</strong></td>
+            <td>${top3Html}</td>
+            <td>${paleHtml}</td>
+            <td>${rawHtml}</td>
+            <td>${overdueHtml}</td>
+          </tr>
+        `;
+      }).join("")}
+    </table>
+    <div class="hint" style="margin-top:8px">"Fecha exacta" = puntaje ponderado solo para el ${pad(day)}/${pad(month)} a través de los años. "Histórico" y "Atrasado" = TODO el historial de la lotería, sin filtrar por fecha. Los tres son frecuencia pasada, no predicción.</div>
+  `;
+}
+
 // Calcula ranking, palés e insights para UNA sola lotería y devuelve el
 // bloque HTML ya armado, junto con la cantidad de sorteos encontrados.
 // Combina TODOS los años del histórico para el día/mes dado: comparar por
@@ -1112,6 +1233,7 @@ function computeLotteryRanking(rows, lottery, m, d, windowSourceRows = data) {
 // tiene valor estadístico es acumular ese día/mes a través de los años.
 function buildLotteryResultBlock(lottery, m, d, top) {
   const lotteryFilter = (l) => l === lottery;
+
 
   const rows = data.filter(r => {
     const { m: month, d: day } = splitDate(r.date);
@@ -2186,6 +2308,7 @@ function switchTab(name) {
   document.querySelectorAll(".tab-btn").forEach(btn => {
     btn.classList.toggle("active", btn.dataset.tab === name);
   });
+  if (name === "upcoming") buildUpcomingSummary();
   const active = document.querySelector(`.tab-panel[data-tab-panel="${name}"]`);
   if (active) active.scrollIntoView({ behavior: "smooth", block: "start" });
 }

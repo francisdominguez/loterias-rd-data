@@ -24,7 +24,8 @@
   <div class="sync-banner" id="sync-banner"></div>
 
   <nav class="tabs" id="tabs" aria-label="Secciones">
-    <button type="button" class="tab-btn active" data-tab="analysis" onclick="switchTab('analysis')">🎯 <span>Análisis</span></button>
+    <button type="button" class="tab-btn active" data-tab="upcoming" onclick="switchTab('upcoming')">🕐 <span>Próxima</span></button>
+    <button type="button" class="tab-btn" data-tab="analysis" onclick="switchTab('analysis')">🎯 <span>Análisis</span></button>
     <button type="button" class="tab-btn" data-tab="simulator" onclick="switchTab('simulator')">🧪 <span>Simulador</span></button>
     <button type="button" class="tab-btn" data-tab="trend" onclick="switchTab('trend')">🕐 <span>Tendencia</span></button>
     <button type="button" class="tab-btn" data-tab="data" onclick="switchTab('data')">📚 <span>Datos</span></button>
@@ -34,7 +35,18 @@
 
 <main>
 
-<div class="tab-panel active" data-tab-panel="analysis">
+<div class="tab-panel active" data-tab-panel="upcoming">
+  <section class="card">
+    <div class="card-head">
+      <h2>🕐 Qué sortea ahora</h2>
+      <p class="card-sub">Una sola tabla, ordenada por hora: qué lotería sortea a continuación y cuáles son sus números y palé de mejor puntaje para hoy.</p>
+    </div>
+    <div class="actions"><button class="secondary" type="button" onclick="buildUpcomingSummary()">🔄 Actualizar ahora</button></div>
+    <div id="upcoming-results" style="margin-top:10px"></div>
+  </section>
+</div>
+
+<div class="tab-panel" data-tab-panel="analysis">
   <section class="card">
     <div class="card-head">
       <h2>🎯 Análisis por fecha</h2>
