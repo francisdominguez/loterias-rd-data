@@ -793,7 +793,7 @@ function buildMirrorFollowSection(topRanked, mirrorFollowStats) {
 // analizada dentro de cada una.
 // ============================================
 function buildDecadeSection(freq) {
-  const decades = Array.from({ length: 10 }, (_, i) => ({ label: `${i}0–${i}9`, count: 0 }));
+  const decades = Array.from({ length: 10 }, (_, i) => ({ label: `${i}0 a ${i}9`, count: 0 }));
   Object.entries(freq).forEach(([n, c]) => {
     const decadeIdx = Math.floor(Number(n) / 10);
     decades[decadeIdx].count += c;
@@ -2500,38 +2500,46 @@ function buildRecentTrendHtml(lottery, windowSize) {
   const usedWindow = recentDraws.length;
   const hot = computeRecentHotNumbers(recentDraws).slice(0, 10);
 
-  const decadeKeys = Array.from({ length: 10 }, (_, i) => `${i}0–${i}9`);
-  const decadeOf = n => { const idx = Math.floor(Number(n) / 10); return `${idx}0–${idx}9`; };
+  const decadeKeys = Array.from({ length: 10 }, (_, i) => `${i}0 a ${i}9`);
+  const decadeOf = n => { const idx = Math.floor(Number(n) / 10); return `${idx}0 a ${idx}9`; };
   const decadeOverdue = computeOverdueStats(recentDraws, decadeOf, decadeKeys);
 
   const termKeys = Array.from({ length: 10 }, (_, i) => String(i));
   const termOf = n => n.slice(-1);
   const termOverdue = computeOverdueStats(recentDraws, termOf, termKeys);
 
-  let html = `<div class="hint">Ventana analizada: los últimos ${usedWindow} sorteo${usedWindow === 1 ? "" : "s"} cargados de esta lotería, en orden cronológico${usedWindow < windowSize ? ` (pediste ${windowSize}, pero el histórico cargado de esta lotería solo tiene ${usedWindow})` : ""}.</div>`;
+  // BUG/confusión corregida: antes los títulos de estas 3 tablas ("Decenas
+  // más atrasadas", etc.) no repetían de qué lotería/ventana hablan. Si el
+  // usuario scrolleaba y perdía de vista el encabezado de arriba, la tabla
+  // quedaba "flotando" sin contexto y se confundía con el análisis POR
+  // FECHA (que es una cosa totalmente distinta). Ahora cada título incluye
+  // la lotería y el tamaño de ventana, y se aclara explícitamente que esto
+  // NO es "un día como hoy": es "los últimos N sorteos, sea cual sea el día
+  // en que cayeron".
+  let html = `<div class="warning">📌 Esto NO es "un día como hoy": ignora el día/mes por completo y mira solo los últimos <b>${usedWindow}</b> sorteo${usedWindow === 1 ? "" : "s"} de <b>${escapeHtml(lottery)}</b> en orden cronológico${usedWindow < windowSize ? ` (pediste ${windowSize}, pero el histórico cargado de esta lotería solo tiene ${usedWindow})` : ""}. Para ver "qué salió un día como hoy a través de los años", usá la pestaña Análisis.</div>`;
 
-  html += '<div class="lottery-result-sub">🔥 Números más frecuentes en la ventana reciente</div>';
+  html += `<div class="lottery-result-sub">🔥 Números más frecuentes — ${escapeHtml(lottery)}, últimos ${usedWindow} sorteos</div>`;
   html += hot.length
     ? `<table><tr><th>Número</th><th>Apariciones</th></tr>${hot.map(([n, c]) => `<tr><td><span class="num hot">${n}</span></td><td><strong>${c}</strong> de ${usedWindow}</td></tr>`).join("")}</table>`
     : '<div class="empty">Sin datos.</div>';
 
-  html += '<div class="lottery-result-sub">❄️ Decenas más atrasadas</div>';
+  html += `<div class="lottery-result-sub">❄️ Decenas más atrasadas — ${escapeHtml(lottery)}, últimos ${usedWindow} sorteos</div>`;
   html += `<table><tr><th>Decena</th><th>Atraso</th></tr>${decadeOverdue.map(x => `
     <tr>
-      <td><span class="num cold">${x.key}</span></td>
+      <td><strong>${x.key}</strong></td>
       <td>${x.seen ? `<strong>${x.overdue}</strong> sorteo${x.overdue === 1 ? "" : "s"} sin salir` : "no salió en ningún sorteo de la ventana"}</td>
     </tr>
   `).join("")}</table>`;
 
-  html += '<div class="lottery-result-sub">❄️ Terminaciones más atrasadas</div>';
+  html += `<div class="lottery-result-sub">❄️ Terminaciones más atrasadas — ${escapeHtml(lottery)}, últimos ${usedWindow} sorteos</div>`;
   html += `<table><tr><th>Terminación</th><th>Atraso</th></tr>${termOverdue.map(x => `
     <tr>
-      <td><span class="num cold">…${x.key}</span></td>
+      <td><strong>termina en ${x.key}</strong></td>
       <td>${x.seen ? `<strong>${x.overdue}</strong> sorteo${x.overdue === 1 ? "" : "s"} sin salir` : "no salió en ningún sorteo de la ventana"}</td>
     </tr>
   `).join("")}</table>`;
 
-  html += '<div class="warning">⚠️ "Atraso" = cuántos sorteos de esta ventana pasaron desde la última vez que apareció ese grupo. Es la misma idea de "números/decenas atrasadas" que usan varios portales de estadísticas de lotería en RD: describe el histórico cargado, no predice ni cambia la probabilidad matemática del próximo sorteo.</div>';
+  html += '<div class="warning">⚠️ "Atraso" = cuántos sorteos de esta ventana pasaron desde la última vez que apareció ese grupo. Describe el histórico cargado, no predice ni cambia la probabilidad matemática del próximo sorteo.</div>';
 
   return html;
 }
