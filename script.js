@@ -1272,6 +1272,17 @@ function handleUpcomingResultsSubmit(e) {
   saveTodayResult(lottery, numbers);
 }
 
+// Convierte una diferencia en minutos (>= 0) a un texto corto tipo "en 42
+// min" o "en 1 h 15 min". Se usa solo para la cuenta regresiva del bloque
+// destacado de la próxima lotería.
+function formatCountdown(diffMinutes) {
+  if (diffMinutes <= 0) return "¡Es ahora!";
+  if (diffMinutes < 60) return `En ${diffMinutes} min`;
+  const h = Math.floor(diffMinutes / 60);
+  const m = diffMinutes % 60;
+  return m === 0 ? `En ${h} h` : `En ${h} h ${m} min`;
+}
+
 function buildUpcomingSummary() {
   const container = document.getElementById("upcoming-results");
   if (!container) return;
@@ -1313,13 +1324,79 @@ function buildUpcomingSummary() {
     return a.minutes - b.minutes;
   });
 
+  // nextIsTomorrow: si NINGÚN sorteo de hoy queda pendiente, el primer
+  // findIndex (con hora >= ahora) no encuentra nada y caemos al primer
+  // sorteo con horario configurado del día siguiente. Se distingue de un
+  // "próximo" real de hoy para no mostrar una cuenta regresiva de minutos
+  // sin sentido (o negativa) en el bloque destacado.
   let nextIdx = rows.findIndex(r => r.minutes != null && r.minutes >= nowMinutes);
-  if (nextIdx === -1) nextIdx = rows.findIndex(r => r.minutes != null);
+  let nextIsTomorrow = false;
+  if (nextIdx === -1) {
+    nextIdx = rows.findIndex(r => r.minutes != null);
+    nextIsTomorrow = true;
+  }
 
   const nowLabel = now.toLocaleTimeString("es-DO", { hour: "numeric", minute: "2-digit" });
 
+  // ---- Bloque destacado "Próximo sorteo" ----
+  // Antes, la única marca visual de "próxima lotería" era un fondo apenas
+  // más claro (#f0fdfa vs #fff) dentro de una grilla de 2 columnas, y esa
+  // tarjeta podía caer en cualquier posición de la grilla (ordenada por
+  // hora, no por relevancia), mezclada entre sorteos de hoy que ya pasaron.
+  // Fácil de pasar por alto. Este bloque separado, arriba de la lista,
+  // resuelve eso: siempre es lo primero que se ve, con cuenta regresiva.
+  let heroHtml = "";
+  if (nextIdx !== -1) {
+    const nextRow = rows[nextIdx];
+    const countdownLabel = nextIsTomorrow
+      ? `Mañana · ${escapeHtml(nextRow.timeStr)}`
+      : formatCountdown(nextRow.minutes - nowMinutes);
+
+    const pickGroups = [];
+    if (nextRow.top3.length) {
+      pickGroups.push(`
+        <div class="next-hero-pick-group">
+          <span class="next-hero-tag">Top</span>
+          ${nextRow.top3.map(n => `<span class="num recommended">${n}</span>`).join("")}
+        </div>
+      `);
+    }
+    if (nextRow.paleTop) {
+      pickGroups.push(`
+        <div class="next-hero-pick-group">
+          <span class="next-hero-tag">Palé</span>
+          <span class="num">${nextRow.paleTop}</span>
+        </div>
+      `);
+    }
+
+    const picksHtml = pickGroups.length
+      ? `<div class="next-hero-picks">${pickGroups.join("")}</div>`
+      : `<div class="next-hero-empty">Sin patrón para el ${pad(day)}/${pad(month)} todavía — mira la pestaña Análisis para el histórico completo de esta lotería.</div>`;
+
+    const alreadyLoggedHtml = nextRow.todayRecord
+      ? `<div class="next-hero-empty">✓ Ya registraste el resultado de hoy para esta lotería.</div>`
+      : "";
+
+    heroHtml = `
+      <div class="next-hero">
+        <div class="next-hero-top">
+          <span class="next-hero-eyebrow"><span class="next-pulse-dot" aria-hidden="true"></span>Próximo sorteo</span>
+          <span class="next-hero-countdown">${escapeHtml(countdownLabel)}</span>
+        </div>
+        <div class="next-hero-main">
+          <span class="next-hero-name">${escapeHtml(nextRow.lottery)}</span>
+          <span class="next-hero-time">🕒 ${nextRow.timeStr ? escapeHtml(nextRow.timeStr) : "Hora no configurada"}</span>
+        </div>
+        ${picksHtml}
+        ${alreadyLoggedHtml}
+      </div>
+    `;
+  }
+
   container.innerHTML = `
     <div class="hint" style="margin-bottom:8px">🕐 Hora de tu dispositivo: <b>${escapeHtml(nowLabel)}</b> · fecha usada: ${pad(day)}/${pad(month)}</div>
+    ${heroHtml}
     <div class="up-list">
       ${rows.map((r, i) => {
         const isNext = i === nextIdx;
@@ -1333,8 +1410,8 @@ function buildUpcomingSummary() {
         return `
           <div class="up-card${isNext ? " next" : ""}">
             <div class="up-head">
-              <span class="up-name">${escapeHtml(r.lottery)}</span>
-              <span class="up-time">${r.timeStr ? escapeHtml(r.timeStr) : "—"}${isNext ? ' <span class="lottery-hour-tag">▶</span>' : ""}</span>
+              <span class="up-name">${escapeHtml(r.lottery)}${isNext ? ' <span class="up-next-flag">▶ Próxima</span>' : ""}</span>
+              <span class="up-time">${r.timeStr ? escapeHtml(r.timeStr) : "—"}</span>
             </div>
             <div class="up-row-line"><span class="up-tag">Top 3</span>${top3Html}</div>
             <div class="up-row-line"><span class="up-tag">Palé</span>${paleHtml}</div>
